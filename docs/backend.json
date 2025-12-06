@@ -1,0 +1,585 @@
+{
+  "entities": {
+    "Property": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Property",
+      "type": "object",
+      "description": "Represents a property managed within the system, including its details, associated media, and analytics.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the property entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the property."
+        },
+        "address": {
+          "type": "string",
+          "description": "The address of the property."
+        },
+        "amenities": {
+          "type": "string",
+          "description": "A comma-separated string of amenities offered by the property."
+        },
+        "rules": {
+          "type": "string",
+          "description": "A period-separated string of the rules associated with the property."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Reference to the Owner of the property. (Relationship: Owner 1:N Property)"
+        },
+        "media": {
+          "type": "array",
+          "description": "A list of media URLs (images, videos) associated with the property.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "qrCode": {
+          "type": "string",
+          "description": "The QR code associated with the property, used for easy access."
+        },
+        "analytics": {
+          "type": "string",
+          "description": "Analytics data related to the property's usage and client interactions."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the property listing.",
+          "enum": [
+            "draft",
+            "published"
+          ]
+        },
+        "reviewCount": {
+          "type": "integer",
+          "description": "Denormalized count of published reviews for the property."
+        },
+        "ratingSum": {
+          "type": "integer",
+          "description": "Denormalized sum of all ratings from published reviews."
+        },
+        "averageRating": {
+          "type": "number",
+          "description": "Denormalized average rating for the property."
+        },
+        "messageCount": {
+          "type": "integer",
+          "description": "The number of AI messages used in the current billing cycle for this property."
+        },
+        "messageQuotaResetDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date when the message quota will reset."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "address",
+        "ownerId",
+        "status"
+      ]
+    },
+    "Owner": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Owner",
+      "type": "object",
+      "description": "Represents the owner of one or more properties, including their contact information and managed properties.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the owner entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the owner."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the owner.",
+          "format": "email"
+        },
+        "photoURL": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the owner's profile picture."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The owner's phone number, can be a WhatsApp number."
+        },
+        "city": {
+          "type": "string",
+          "description": "The city where the owner is based."
+        },
+        "country": {
+          "type": "string",
+          "description": "The country where the owner is based."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "The owner's company name."
+        },
+        "facebookUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Link to the owner's Facebook profile."
+        },
+        "instagramUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Link to the owner's Instagram profile."
+        },
+        "linkedinUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Link to the owner's LinkedIn profile."
+        },
+        "description": {
+          "type": "string",
+          "description": "A short description or bio for the owner."
+        },
+        "subscriptionTier": {
+          "type": "string",
+          "description": "The user's current subscription tier.",
+          "enum": [
+            "free",
+            "pro",
+            "premium"
+          ]
+        },
+        "subscriptionStatus": {
+          "type": "string",
+          "description": "The status of the user's subscription.",
+          "enum": [
+            "active",
+            "inactive",
+            "trialing"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email"
+      ]
+    },
+    "Client": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Client",
+      "type": "object",
+      "description": "Represents a client interacting with the system, including their contact information and interaction history.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the client entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the client."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Denormalized reference to the Owner whose property this client has interacted with."
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "ChatLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatLog",
+      "type": "object",
+      "description": "A log of chat messages for a specific property and client.",
+      "properties": {
+        "propertyId": {
+          "type": "string",
+          "description": "Reference to the Property associated with the chat."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Reference to the Client participating in the chat."
+        },
+        "lastUpdatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the last message in the chat."
+        },
+        "messages": {
+          "type": "array",
+          "description": "An array of messages exchanged in the chat.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique ID for the message."
+              },
+              "role": {
+                "type": "string",
+                "description": "The role of the message sender.",
+                "enum": [
+                  "user",
+                  "assistant"
+                ]
+              },
+              "content": {
+                "type": "string",
+                "description": "The text content of the message."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The timestamp when the message was created."
+              }
+            },
+            "required": ["id", "role", "content", "createdAt"]
+          }
+        }
+      },
+      "required": [
+        "propertyId",
+        "clientId",
+        "messages"
+      ]
+    },
+    "FAQ": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FAQ",
+      "type": "object",
+      "description": "A frequently asked question and its answer for a property.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the FAQ."
+        },
+        "question": {
+          "type": "string",
+          "description": "The question being asked."
+        },
+        "answer": {
+          "type": "string",
+          "description": "The answer to the question."
+        },
+        "usageCount": {
+          "type": "integer",
+          "description": "A counter for how many times this FAQ was used to answer a question."
+        }
+      },
+      "required": [
+        "id",
+        "question",
+        "answer"
+      ]
+    },
+    "Recommendation": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Recommendation",
+      "type": "object",
+      "description": "A curated recommendation from the property owner.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the recommendation."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the recommendation (e.g., 'Best Coffee Nearby')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A short description of the place or activity."
+        },
+        "link": {
+          "type": "string",
+          "format": "uri",
+          "description": "An optional URL for more information."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description"
+      ]
+    },
+    "Review": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Review",
+      "type": "object",
+      "description": "A review for a property submitted by a visitor.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the review."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Reference to the Owner of the property the review belongs to."
+        },
+        "propertyId": {
+          "type": "string",
+          "description": "Reference to the Property the review belongs to."
+        },
+        "reviewerName": {
+          "type": "string",
+          "description": "The name of the person who wrote the review."
+        },
+        "rating": {
+          "type": "number",
+          "description": "The overall average rating from 1 to 5.",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "ratingCleanliness": {
+            "type": "number",
+            "description": "Rating for cleanliness from 1 to 5."
+        },
+        "ratingAccuracy": {
+            "type": "number",
+            "description": "Rating for description accuracy from 1 to 5."
+        },
+        "ratingCheckIn": {
+            "type": "number",
+            "description": "Rating for check-in process from 1 to 5."
+        },
+        "ratingCommunication": {
+            "type": "number",
+            "description": "Rating for host communication from 1 to 5."
+        },
+        "ratingLocation": {
+            "type": "number",
+            "description": "Rating for location from 1 to 5."
+        },
+        "ratingValue": {
+            "type": "number",
+            "description": "Rating for value from 1 to 5."
+        },
+        "comment": {
+          "type": "string",
+          "description": "The main text content of the review."
+        },
+        "guestTip": {
+          "type": "string",
+          "description": "An optional recommendation tip submitted by the guest."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the review was created."
+        },
+        "stayDate": {
+            "type": "string",
+            "format": "date",
+            "description": "The date the visitor stayed at the property."
+        },
+        "visitorCity": {
+            "type": "string",
+            "description": "The city the visitor is from."
+        },
+        "visitorCountry": {
+            "type": "string",
+            "description": "The country the visitor is from."
+        },
+        "ownerResponse": {
+          "type": "string",
+          "description": "An optional response from the property owner."
+        },
+        "helpful_yes": {
+          "type": "number",
+          "description": "Count of users who found the review helpful."
+        },
+        "helpful_no": {
+          "type": "number",
+          "description": "Count of users who did not find the review helpful."
+        },
+        "status": {
+            "type": "string",
+            "description": "The moderation status of the review.",
+            "enum": ["published", "pending", "archived", "reported"]
+        },
+        "reportReason": {
+            "type": "string",
+            "description": "The reason a review was reported by the owner."
+        },
+        "reportedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The timestamp when a review was reported."
+        }
+      },
+      "required": [
+        "id",
+        "propertyId",
+        "ownerId",
+        "reviewerName",
+        "rating",
+        "comment",
+        "createdAt",
+        "status"
+      ]
+    },
+    "SalesInquiry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Sales Inquiry",
+      "type": "object",
+      "description": "Represents a contact request from a potential customer interested in the Premium plan.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the sales inquiry."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the person making the inquiry."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The email address of the person."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "The name of the person's company."
+        },
+        "message": {
+          "type": "string",
+          "description": "The message or question from the person."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the inquiry.",
+          "enum": ["new", "contacted"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the inquiry was created."
+        }
+      },
+      "required": ["id", "name", "email", "message", "status", "createdAt"]
+    },
+    "BookingInquiry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Booking Inquiry",
+      "type": "object",
+      "description": "Represents a visitor's inquiry to book a recommended experience.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID for the inquiry." },
+        "propertyId": { "type": "string", "description": "ID of the property this inquiry belongs to." },
+        "ownerId": { "type": "string", "description": "ID of the property owner for notification." },
+        "clientId": { "type": "string", "description": "ID of the visitor making the inquiry." },
+        "recommendationTitle": { "type": "string", "description": "The title of the recommendation being inquired about." },
+        "visitorName": { "type": "string", "description": "The name of the visitor." },
+        "visitorContact": { "type": "string", "description": "The email or phone number of the visitor." },
+        "visitorWhatsApp": { "type": "string", "description": "The WhatsApp number of the visitor, if provided." },
+        "bookingDate": { "type": "string", "format": "date", "description": "The desired date for the booking." },
+        "numberOfPeople": { "type": "integer", "description": "The number of people in the visitor's party." },
+        "notes": { "type": "string", "description": "Optional notes from the visitor." },
+        "status": { "type": "string", "enum": ["new", "contacted"], "description": "The status of the inquiry." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the inquiry was submitted." }
+      },
+      "required": [
+        "id", "propertyId", "ownerId", "clientId", "recommendationTitle", "visitorName", "visitorContact", "status", "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/properties/{propertyId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/Property"
+          },
+          "description": "Stores property details."
+        },
+        "collections": [
+          {
+            "path": "/faqs/{faqId}",
+            "definition": {
+              "schema": {
+                "$ref": "#/entities/FAQ"
+              },
+              "description": "Stores the frequently asked questions for a specific property."
+            }
+          },
+          {
+            "path": "/recommendations/{recommendationId}",
+            "definition": {
+              "schema": {
+                "$ref": "#/entities/Recommendation"
+              },
+              "description": "Stores owner-curated recommendations for a specific property."
+            }
+          },
+          {
+            "path": "/reviews/{reviewId}",
+            "definition": {
+              "schema": {
+                "$ref": "#/entities/Review"
+              },
+              "description": "Stores visitor reviews for a specific property."
+            }
+          },
+          {
+            "path": "/chatLogs/{clientId}",
+            "definition": {
+              "schema": {
+                "$ref": "#/entities/ChatLog"
+              },
+              "description": "Stores chat logs for a specific client within a property."
+            }
+          },
+          {
+            "path": "/bookingInquiries/{inquiryId}",
+            "definition": {
+              "schema": {
+                "$ref": "#/entities/BookingInquiry"
+              },
+              "description": "Stores visitor inquiries for booking recommendations."
+            }
+          }
+        ]
+      },
+      {
+        "path": "/owners/{ownerId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/Owner"
+          },
+          "description": "Stores owner information."
+        },
+        "collections": [
+            {
+              "path": "/inquiries/{inquiryId}",
+              "definition": {
+                  "schema": {
+                      "$ref": "#/entities/SalesInquiry"
+                  },
+                  "description": "Stores sales inquiries from this specific owner."
+              }
+            }
+        ]
+      },
+      {
+        "path": "/clients/{clientId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/Client"
+          },
+          "description": "Stores client information."
+        }
+      }
+    ]
+  }
+}

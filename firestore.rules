@@ -1,0 +1,102 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Core Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // 🔑 CRITICAL FIX: Use Database Check
+    function isSuperAdmin() {
+      // Check if the user's UID exists as a document in the 'superAdmins' collection.
+      return request.auth != null && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
+    }
+    
+    // --- SuperAdmins Collection (STABLE FIX) ---
+    match /superAdmins/{userId} {
+        // 1. Client Read (get): Allows the user to read their own document to get their role.
+        allow get: if isOwner(userId);
+        
+        // 2. Client Query (list): Allow a confirmed SuperAdmin to list the collection.
+        // This prevents the circular dependency while allowing admins to see each other.
+        allow list: if isSuperAdmin();
+
+        // 3. Prevent write access.
+        allow write: if false;
+    }
+
+    // --- Property Matches ---
+    match /properties/{propertyId} {
+      allow read: if true; 
+      
+      // Owners can write to their own properties. SuperAdmins can write to any.
+      allow write: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin() || (request.method == 'create' && isOwner(request.resource.data.ownerId)));
+
+      // --- Subcollections ---
+      match /reviews/{reviewId} {
+        allow read, create: if true;
+        // Owners or SuperAdmins can moderate reviews.
+        allow update, delete: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin());
+      }
+
+      match /faqs/{faqId} {
+        allow read: if true;
+        // Owners or SuperAdmins can manage FAQs.
+        allow write: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin());
+      }
+      
+      match /recommendations/{recommendationId} {
+        allow read: if true;
+        // Owners or SuperAdmins can manage recommendations.
+        allow write: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin());
+      }
+
+      match /bookingInquiries/{inquiryId} {
+        allow create: if isSignedIn();
+        // Owners or SuperAdmins can manage booking inquiries.
+        allow read, update: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin());
+      }
+
+      match /chatLogs/{clientId} {
+        function propertyOwnerId() {
+            return get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId;
+        }
+        
+        allow create: if isSignedIn();
+        // The client, property owner, or a SuperAdmin can read chat logs.
+        allow read, update: if isSignedIn() && (isOwner(clientId) || isOwner(propertyOwnerId()) || isSuperAdmin());
+      }
+    }
+
+    // --- Top-Level Collections ---
+    match /owners/{ownerId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isOwner(ownerId);
+      // An owner can update their own profile, or a SuperAdmin can update any profile.
+      allow update: if isSignedIn() && (isOwner(ownerId) || isSuperAdmin());
+
+      match /inquiries/{inquiryId} {
+          allow create: if isSignedIn() && isOwner(ownerId);
+          // Only SuperAdmins can manage sales inquiries.
+          allow read, update, delete: if isSuperAdmin();
+      }
+    }
+
+    match /clients/{clientId} {
+      allow create: if isSignedIn();
+      // The client, the associated property owner, or a SuperAdmin can read client info.
+      allow read: if isSignedIn() && (
+          isOwner(clientId) ||
+          isSuperAdmin() ||
+          (resource.data.ownerId != null && isOwner(resource.data.ownerId))
+      );
+      allow update: if false; // No client-side updates.
+    }
+  }
+}

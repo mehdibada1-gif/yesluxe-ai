@@ -1,0 +1,46 @@
+{
+  "placeholderImages": [
+    {
+      "id": "villa-exterior",
+      "description": "Exterior view of the Oceanfront Villa.",
+      "imageUrl": "https://images.unsplash.com/photo-1670589953882-b94c9cb380f5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjB2aWxsYXxlbnwwfHx8fDE3NjM3NTM1MjZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "modern villa"
+    },
+    {
+      "id": "living-room",
+      "description": "Living room with ocean view.",
+      "imageUrl": "https://images.unsplash.com/photo-1611094016919-36b65678f3d6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBsaXZpbmdyb29tfGVufDB8fHx8MTc2MzgyNjYxNHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "luxury livingroom"
+    },
+    {
+      "id": "bedroom",
+      "description": "Master bedroom with a king-sized bed.",
+      "imageUrl": "https://images.unsplash.com/photo-1696762932825-2737db830bbe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8bW9kZXJuJTIwYmVkcm9vbXxlbnwwfHx8fDE3NjM3Mjk4Mjh8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "modern bedroom"
+    },
+    {
+      "id": "pool",
+      "description": "Infinity pool overlooking the ocean.",
+      "imageUrl": "https://images.unsplash.com/photo-1533070129449-d0ee17425ac4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxpbmZpbml0eSUyMHBvb2x8ZW58MHx8fHwxNzYzODI2NjE0fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "infinity pool"
+    },
+    {
+      "id": "bathroom",
+      "description": "Modern bathroom with a walk-in shower.",
+      "imageUrl": "https://images.unsplash.com/photo-1638799869566-b17fa794c4de?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxsdXh1cnklMjBiYXRocm9vbXxlbnwwfHx8fDE3NjM3NTUyODN8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "luxury bathroom"
+    },
+    {
+      "id": "user-avatar-1",
+      "description": "User avatar 1",
+      "imageUrl": "https://images.unsplash.com/photo-1590086782792-42dd2350140d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjM3MTEyNTR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "user-avatar-2",
+      "description": "User avatar 2",
+      "imageUrl": "https://images.unsplash.com/photo-1557053910-d9eadeed1c58?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx3b21hbiUyMHBvcnRyYWl0fGVufDB8fHx8MTc2Mzc0NTI0MXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman portrait"
+    }
+  ]
+}
