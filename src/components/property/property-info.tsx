@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -103,7 +104,7 @@ function BookingInquiryForm({ property, recommendation, onFinished }: { property
             createdAt: serverTimestamp(),
             ...values,
             numberOfPeople: values.numberOfPeople ? Number(values.numberOfPeople) : undefined,
-            bookingDate: values.bookingDate ? values.bookingDate.toISOString() : undefined,
+            bookingDate: values.bookingDate ? values.bookingDate.toISOString().split('T')[0] : undefined,
         };
 
         // Remove undefined fields before sending to Firestore
@@ -222,14 +223,14 @@ function ReviewForm({ property }: { property: Property }) {
         }
         setIsSubmitting(true);
         
-        // Calculate average rating
         const ratings = [values.ratingCleanliness, values.ratingAccuracy, values.ratingCheckIn, values.ratingCommunication, values.ratingLocation, values.ratingValue];
-        const averageRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+        const validRatings = ratings.filter(r => r > 0);
+        const averageRating = validRatings.length > 0 ? validRatings.reduce((a, b) => a + b, 0) / validRatings.length : 0;
 
-        const reviewData = {
+        const reviewData: Omit<Review, 'id' | 'createdAt'> & {createdAt: any} = {
             ...values,
             rating: averageRating,
-            stayDate: values.stayDate.toISOString(),
+            stayDate: values.stayDate ? values.stayDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             propertyId: property.id,
             ownerId: property.ownerId,
             clientId: user.uid,
@@ -560,11 +561,11 @@ export default function PropertyInfo({ property }: PropertyInfoProps) {
       </CardContent>
        <Separator className="my-4" />
         <CardHeader>
-            {hasReviews ? (
+            {hasReviews && property.reviewCount && property.averageRating ? (
                 <div className="flex items-center gap-2">
                     <Star className="h-6 w-6 text-primary fill-primary" />
                     <CardTitle className="text-2xl font-bold">
-                        {property.averageRating?.toFixed(1)}
+                        {property.averageRating.toFixed(1)}
                         <span className="text-base font-normal text-muted-foreground">
                             {' '}
                             &middot; {property.reviewCount} review{property.reviewCount !== 1 ? 's' : ''}
@@ -647,5 +648,3 @@ export default function PropertyInfo({ property }: PropertyInfoProps) {
     </Card>
   );
 }
-
-    

@@ -135,6 +135,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
+  const [redirecting, setRedirecting] = useState(false);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -143,10 +144,11 @@ export default function LoginPage() {
 
   // The /dashboard route now acts as a guard and will handle all redirects.
   useEffect(() => {
-    if (!isUserLoading && user) {
-      router.push('/dashboard');
+    if (!isUserLoading && user && !redirecting) {
+        setRedirecting(true);
+        router.push('/dashboard');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, redirecting]);
 
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -156,7 +158,7 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push('/dashboard');
+      // Let the useEffect handle the redirect to avoid race conditions
     } catch (error: any) {
         let description = "An unexpected error occurred. Please try again.";
         switch (error.code) {
@@ -202,7 +204,7 @@ export default function LoginPage() {
         };
         await setDoc(ownerRef, newOwner);
         
-        router.push('/dashboard');
+        // Let the useEffect handle the redirect
         
     } catch (error: any) {
       toast({

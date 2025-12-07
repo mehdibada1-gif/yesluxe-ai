@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useTransition } from 'react';
@@ -348,14 +349,16 @@ export default function PropertyReviews() {
     if (!publishedReviews || publishedReviews.length === 0) return [];
     
     const totals = {
-      cleanliness: 0, accuracy: 0, checkIn: 0, communication: 0, location: 0, value: 0, count: 0
+      cleanliness: 0, accuracy: 0, checkIn: 0, communication: 0, location: 0, value: 0,
     };
-
+    
     let reviewCountWithDetailedRatings = 0;
+    
     publishedReviews.forEach(review => {
-      if (review.ratingCleanliness) {
+      // Only include reviews that have the detailed ratings
+      if (review.ratingCleanliness !== undefined && review.ratingAccuracy !== undefined) {
         totals.cleanliness += review.ratingCleanliness;
-        totals.accuracy += review.ratingAccuracy || 0;
+        totals.accuracy += review.ratingAccuracy;
         totals.checkIn += review.ratingCheckIn || 0;
         totals.communication += review.ratingCommunication || 0;
         totals.location += review.ratingLocation || 0;

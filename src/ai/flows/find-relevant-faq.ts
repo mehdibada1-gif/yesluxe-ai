@@ -67,18 +67,11 @@ const findRelevantFaqFlow = ai.defineFlow(
 
     if (faqId && faqId !== 'null') {
       try {
-        // NOTE: We cannot call client-side Firebase from a Genkit flow directly.
-        // This increment logic needs to be handled via a Cloud Function or another server-side mechanism.
-        // For now, we will log it. In a real app, this would trigger a function.
-        console.log(`Usage count for FAQ ${faqId} should be incremented for property ${input.propertyId}.`);
-        
-        // This is a placeholder for a proper server-to-server call.
-        // In a production environment, you would use the Admin SDK here or a callable function.
-        // Since Genkit flows run on the server, we can't use the client-side `getFunctions`.
-        // We will add a real callable function later.
-
+        const { functions } = getFirebase();
+        const incrementFaqUsage = httpsCallable(functions, 'incrementFaqUsage');
+        await incrementFaqUsage({ propertyId: input.propertyId, faqId: faqId });
       } catch (error) {
-         console.error(`Failed to log increment usage for FAQ ${faqId}:`, error);
+         console.error(`Failed to trigger increment usage for FAQ ${faqId}:`, error);
          // We don't throw an error here, as failing to increment is not a critical failure for the user.
       }
       return { faqId };

@@ -20,21 +20,30 @@ export default function ModerationPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
-    
-    // Securely check if the current user is a SuperAdmin.
-    const superAdminRef = useMemoFirebase(
-        () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
-        [firestore, user]
-    );
-    const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-    const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
+    const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+    const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
     useEffect(() => {
-        if (!isUserLoading && !isSuperAdminLoading && !isSuperAdmin) {
-            toast({ variant: 'destructive', title: 'Access Denied' });
-            router.push('/dashboard');
+        const checkAdminStatus = async () => {
+            if (user) {
+                const idTokenResult = await user.getIdTokenResult(true);
+                const isAdmin = idTokenResult.claims.superAdmin === true;
+                setIsSuperAdmin(isAdmin);
+                if (!isAdmin) {
+                    toast({ variant: 'destructive', title: 'Access Denied' });
+                    router.push('/dashboard');
+                }
+            }
+            setIsCheckingAdmin(false);
+        };
+        if (!isUserLoading) {
+            if (!user) {
+                router.push('/login');
+            } else {
+                checkAdminStatus();
+            }
         }
-    }, [isUserLoading, isSuperAdminLoading, isSuperAdmin, toast, router]);
+    }, [user, isUserLoading, router, toast]);
 
     const reportedReviewsQuery = useMemoFirebase(
         () => (firestore && isSuperAdmin ? query(collectionGroup(firestore, 'reviews'), where('status', '==', 'reported')) : null),
@@ -63,7 +72,7 @@ export default function ModerationPage() {
         }
     };
     
-    const isLoading = isUserLoading || isSuperAdminLoading || areReviewsLoading;
+    const isLoading = isUserLoading || isCheckingAdmin || areReviewsLoading;
 
     if (isLoading) {
         return (

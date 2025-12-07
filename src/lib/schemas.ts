@@ -70,9 +70,9 @@ export const reviewFormSchema = z.object({
     comment: z.string().min(10, "Comment must be at least 10 characters long.").max(500, "Comment cannot exceed 500 characters."),
     stayDate: z.date({
         required_error: "Please select the date of your stay.",
-    }),
-    visitorCity: z.string().min(2, "Please enter your city."),
-    visitorCountry: z.string().min(2, "Please enter your country."),
+    }).optional(),
+    visitorCity: z.string().min(2, "Please enter your city.").optional().or(z.literal('')),
+    visitorCountry: z.string().min(2, "Please enter your country.").optional().or(z.literal('')),
     ratingCleanliness: z.number().min(1, "Please rate cleanliness.").max(5),
     ratingAccuracy: z.number().min(1, "Please rate accuracy.").max(5),
     ratingCheckIn: z.number().min(1, "Please rate check-in.").max(5),

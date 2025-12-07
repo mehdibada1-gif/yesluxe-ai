@@ -3,9 +3,17 @@
 
 import { ai } from '@/ai/genkit';
 import { getFirebase } from '@/firebase/server-init';
-import { collection, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
-import type { Property, FirestoreFAQ } from '@/lib/types';
-import { findRelevantFaq } from '@/ai/flows/find-relevant-faq';
+import { googleAI } from '@genkit-ai/google-genai';
+import { Document, nearestNeighbor } from 'genkit';
+import type { Property } from '@/lib/types';
+import {
+  Query,
+  collection,
+  query,
+  where,
+  getDocs,
+  limit,
+} from 'firebase/firestore';
 
 // The input now requires the entire property object.
 type GetAIAnswerInput = {
@@ -13,27 +21,17 @@ type GetAIAnswerInput = {
   question: string;
 };
 
-/**
- * Fetches all FAQs for a given property.
- * @param propertyId The ID of the property.
- * @returns A promise that resolves to an array of FAQ objects.
- */
-async function getFaqs(propertyId: string): Promise<FirestoreFAQ[]> {
-  const { firestore } = getFirebase();
-  const faqRef = collection(firestore, 'properties', propertyId, 'faqs');
-  const snap = await getDocs(faqRef);
-  if (snap.empty) {
-    return [];
-  }
-  return snap.docs.map(doc => doc.data() as FirestoreFAQ).filter(faq => faq.id !== '--USAGE--');
-}
-
+// Define the embedding model. This must match the one used for indexing.
+const embedder = googleAI.embedder('text-embedding-004');
 
 /**
  * This server action provides an AI-driven answer based on property details.
- * It now uses a two-stage process:
- * 1. Attempt to find a specific answer from an existing FAQ.
- * 2. If no relevant FAQ is found, fall back to a general AI response using the full property context.
+ * It uses a RAG (Retrieval-Augmented Generation) pattern.
+ *
+ * 1.  Embed the user's question into a vector.
+ * 2.  Use Firestore Vector Search to find the most relevant text chunks.
+ * 3.  Inject these chunks as context into a prompt for the Gemini model.
+ * 4.  Return the generated answer.
  */
 export async function getAIAnswer(
   input: GetAIAnswerInput
@@ -43,82 +41,58 @@ export async function getAIAnswer(
   const { property, question } = input;
   const { firestore } = getFirebase();
 
-  // --- STAGE 1: Find a relevant FAQ ---
-  const faqs = await getFaqs(property.id);
+  // 1. Embed the user's question
+  const questionEmbedding = await ai.embed({
+    embedder,
+    content: question,
+  });
 
-  if (faqs.length > 0) {
-    const relevantFaqResult = await findRelevantFaq({
-      question: question,
-      faqs: faqs,
-      propertyId: property.id
-    });
-    
-    if (relevantFaqResult.faqId) {
-      const matchedFaq = faqs.find(faq => faq.id === relevantFaqResult.faqId);
-      if (matchedFaq) {
-        console.log(`Found relevant FAQ: ${matchedFaq.id}`);
-        // The `findRelevantFaq` flow now handles incrementing the usage count.
-        return {
-          answer: matchedFaq.answer,
-          usedFaqIds: [matchedFaq.id],
-        };
-      }
-    }
+  // 2. Perform vector search on the /propertyVectors collection
+  const vectorStoreRef = collection(firestore, 'propertyVectors');
+
+  // Build the query to first filter by propertyId and then find the nearest neighbors.
+  const vectorQuery: Query = query(
+    vectorStoreRef,
+    where('propertyId', '==', property.id),
+    nearestNeighbor('embedding', questionEmbedding, {
+      limit: 5,
+      distanceMeasure: 'COSINE',
+    })
+  );
+  
+  const searchResults = await getDocs(vectorQuery);
+  
+  const contextChunks: string[] = [];
+  if (!searchResults.empty) {
+      searchResults.docs.forEach(doc => {
+          contextChunks.push(doc.data().chunk);
+      });
   }
   
-  // --- STAGE 2: Fallback to General AI Response ---
-  console.log("No relevant FAQ found, falling back to general AI response.");
-  
-  const faqContent = faqs.map(faq => `Q: ${faq.question}\nA: ${faq.answer}`).join('\n\n') || 'No FAQs available.';
+  const context = contextChunks.join('\n---\n');
 
-  const propertyContext = `
-    Property Name: ${property.name}
-    Description: ${property.description}
-    Amenities: ${Array.isArray(property.amenities) ? property.amenities.join(', ') : property.amenities}
-    House Rules: ${Array.isArray(property.rules) ? property.rules.join('. ') : property.rules}
-  `.trim();
-
-  const recommendationsContent = property.recommendations?.map(rec => 
-    `Title: ${rec.title}\nDescription: ${rec.description}${rec.link ? `\nLink: ${rec.link}` : ''}`
-  ).join('\n\n') || 'No recommendations have been added by the owner.';
-
+  // 3. Augment the prompt with the retrieved context
   const prompt = `
-    You are a helpful and friendly property assistant chatbot. Your goal is to answer visitor questions accurately based on the information provided.
+    You are a helpful and friendly property assistant chatbot. Your goal is to answer visitor questions accurately based ONLY on the information provided in the "CONTEXT" section.
 
-    **Instructions:**
-    1. First, check the "FAQ" section to see if there is a direct answer to the user's question. This is your primary source of truth for specific queries.
-    2. If the question is about experiences, activities, or places to go, check the "Owner's Recommendations" section.
-    3. If the question is more general or not covered in the FAQs or recommendations, use the information in the "Property Context" section.
-    4. If the answer cannot be found in any section, respond with: "I don't have this information. Please contact the property owner."
-    5. Do NOT invent facts or details. Answer using only the content provided.
+    **CRITICAL INSTRUCTIONS:**
+    1.  Base your entire answer on the provided "CONTEXT" section.
+    2.  Do NOT use any information outside of the "CONTEXT".
+    3.  If the answer to the user's question is not found in the "CONTEXT", you MUST respond with: "I'm sorry, I don't have information about that. Please contact the property owner for more details."
+    4.  Keep your answers concise and to the point.
 
     ---
-    ## Property Context
-    ${propertyContext}
-    ---
-    ## FAQ (Frequently Asked Questions)
-    ${faqContent}
-    ---
-    ## Owner's Recommendations
-    ${recommendationsContent}
+    CONTEXT:
+    ${context || 'No information available.'}
     ---
 
-    ## Client question:
+    USER'S QUESTION:
     ${question}
 
     Now, provide a helpful answer based on these instructions.
   `;
 
-  const propertyRef = doc(firestore, 'properties', property.id);
-  try {
-    // Increment the general message counter for this fallback response.
-    await updateDoc(propertyRef, {
-      messageCount: increment(1)
-    });
-  } catch (error) {
-    console.error(`Failed to increment message count for property ${property.id}:`, error);
-  }
-
+  // 4. Generate the final answer using the augmented prompt
   const { text } = await ai.generate({
     prompt: prompt,
     model: 'googleai/gemini-2.5-flash',
@@ -126,6 +100,6 @@ export async function getAIAnswer(
 
   return {
     answer: text || "I'm sorry, I was unable to process that request.",
-    usedFaqIds: [], // No specific FAQ was used in this fallback path.
+    usedFaqIds: [], // This is no longer applicable in the RAG model.
   };
 }

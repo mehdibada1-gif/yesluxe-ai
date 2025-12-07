@@ -18,7 +18,7 @@ import {
   CreditCard,
   User,
   LogOut,
-  Building2,
+  Building,
   Users,
   ShieldAlert,
   Database,
@@ -82,7 +82,7 @@ export default function AppSidebar() {
 
   const ownerNavItems = [
     { href: "/dashboard/owner", tooltip: "Dashboard", icon: LayoutDashboard, label: "Dashboard", activeCondition: (path: string) => path === '/dashboard/owner' },
-    { href: "/dashboard/properties", tooltip: "Properties", icon: Building2, label: "My Properties", activeCondition: (path: string) => path.startsWith('/dashboard/properties') || path.startsWith('/dashboard/property') },
+    { href: "/dashboard/properties", tooltip: "Properties", icon: Building, label: "My Properties", activeCondition: (path: string) => path.startsWith('/dashboard/properties') || path.startsWith('/dashboard/property') },
     { href: "/dashboard/analytics", tooltip: "Analytics", icon: BarChart2, label: "Analytics", activeCondition: (path: string) => path.startsWith('/dashboard/analytics') },
     { href: "/dashboard/billing", tooltip: "Billing", icon: CreditCard, label: "Billing", activeCondition: (path: string) => path.startsWith('/dashboard/billing') },
   ];
@@ -90,7 +90,7 @@ export default function AppSidebar() {
   const adminNavItems = [
       { href: "/dashboard/admin", tooltip: "Admin Dashboard", icon: LayoutDashboard, label: "Admin Dashboard", activeCondition: (path: string) => path === '/dashboard/admin' },
       { href: "/dashboard/admin/owners", tooltip: "Owners", icon: Users, label: "All Owners", activeCondition: (path: string) => path.startsWith('/dashboard/admin/owners') },
-      { href: "/dashboard/admin/properties", tooltip: "All Properties", icon: Building2, label: "All Properties", activeCondition: (path: string) => path.startsWith('/dashboard/admin/properties') },
+      { href: "/dashboard/admin/properties", tooltip: "All Properties", icon: Building, label: "All Properties", activeCondition: (path: string) => path.startsWith('/dashboard/admin/properties') },
       { href: "/dashboard/admin/sales", tooltip: "Sales", icon: Send, label: "Sales Inquiries", activeCondition: (path: string) => path.startsWith('/dashboard/admin/sales') },
       { href: "/dashboard/admin/moderation", tooltip: "Moderation", icon: ShieldAlert, label: "Moderation", activeCondition: (path: string) => path.startsWith('/dashboard/admin/moderation') },
       { href: "/dashboard/admin/data-audit", tooltip: "Data Audit", icon: Database, label: "Data Audit", activeCondition: (path: string) => path.startsWith('/dashboard/admin/data-audit') },

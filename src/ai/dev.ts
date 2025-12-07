@@ -14,3 +14,4 @@ import '@/ai/flows/suggest-new-faqs.ts';
 import '@/ai/flows/find-relevant-faq.ts';
 import '@/ai/flows/import-property-from-url.ts';
 import '@/ai/flows/generate-booking-inquiry-response.ts';
+import '@/ai/flows/index-property-data.ts';

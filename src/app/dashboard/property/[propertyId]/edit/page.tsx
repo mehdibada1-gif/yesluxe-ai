@@ -22,9 +22,9 @@ import { doc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/fi
 import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useTransition } from 'react';
-import { Loader2, Sparkles, MapPin, Save, EyeOff, Beaker, Trash2, Image as ImageIcon, PlusCircle } from 'lucide-react';
+import { Loader2, Sparkles, MapPin, Save, EyeOff, Beaker, Trash2, Image as ImageIcon, PlusCircle, ServerCog } from 'lucide-react';
 import { FirestoreProperty, Review } from '@/lib/types';
-import { handleGenerateContent } from '@/app/actions';
+import { handleGenerateContent, handleIndexProperty } from '@/app/actions';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -236,6 +236,7 @@ function EditPropertyForm({ firestoreProperty }: { firestoreProperty: FirestoreP
   const { user } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, startGenerating] = useTransition();
+    const [isIndexing, startIndexing] = useTransition();
   const [isSeeding, setIsSeeding] = useState(false);
   const [aiKeywords, setAiKeywords] = useState('');
   const [propertyType, setPropertyType] = useState('Villa');
@@ -350,6 +351,23 @@ function EditPropertyForm({ firestoreProperty }: { firestoreProperty: FirestoreP
         toast({
             title: status === 'published' ? "Property Published!" : "Property Updated!",
             description: `${values.name} has been successfully saved.`,
+        });
+        // After successfully saving, trigger the indexing flow.
+        startIndexing(async () => {
+            try {
+                await handleIndexProperty(propertyId);
+                toast({
+                    title: "Content Indexing Started",
+                    description: "Your property's data is being indexed for the AI concierge. This may take a moment."
+                });
+            } catch (e) {
+                console.error("Indexing error", e);
+                toast({
+                    variant: 'destructive',
+                    title: "Indexing Failed",
+                    description: "Could not index property data."
+                });
+            }
         });
     }).catch(serverError => {
         const permissionError = new FirestorePermissionError({
@@ -554,23 +572,23 @@ function EditPropertyForm({ firestoreProperty }: { firestoreProperty: FirestoreP
           <div className="flex justify-end gap-2 mt-6">
                {firestoreProperty.status === 'draft' ? (
                   <>
-                      <Button type="submit" value="draft" variant="secondary" disabled={isSubmitting || isGenerating}>
+                      <Button type="submit" value="draft" variant="secondary" disabled={isSubmitting || isGenerating || isIndexing}>
                           {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                           Save Draft
                       </Button>
-                      <Button type="submit" value="published" disabled={isSubmitting || isGenerating}>
-                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Button type="submit" value="published" disabled={isSubmitting || isGenerating || isIndexing}>
+                          {(isSubmitting || isIndexing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Publish
                       </Button>
                   </>
                ) : (
                   <>
-                      <Button type="submit" value="draft" variant="secondary" disabled={isSubmitting || isGenerating}>
+                      <Button type="submit" value="draft" variant="secondary" disabled={isSubmitting || isGenerating || isIndexing}>
                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <EyeOff className="mr-2 h-4 w-4" />}
                           Unpublish
                       </Button>
-                      <Button type="submit" value="published" disabled={isSubmitting || isGenerating}>
-                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Button type="submit" value="published" disabled={isSubmitting || isGenerating || isIndexing}>
+                          {(isSubmitting || isIndexing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Save Changes
                       </Button>
                   </>
@@ -587,10 +605,17 @@ function EditPropertyForm({ firestoreProperty }: { firestoreProperty: FirestoreP
               <CardTitle>Advanced Settings</CardTitle>
               <CardDescription>Actions for testing and debugging.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-wrap gap-2">
                <Button variant="outline" size="sm" type="button" onClick={handleSeedReview} disabled={isSeeding}>
                     {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Beaker className="mr-2 h-4 w-4" />}
                     Seed Sample Review
+                </Button>
+                <Button variant="outline" size="sm" type="button" onClick={() => startIndexing(async () => {
+                    await handleIndexProperty(propertyId);
+                    toast({title: "Re-indexing started"});
+                })} disabled={isIndexing}>
+                    {isIndexing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ServerCog className="mr-2 h-4 w-4" />}
+                    Re-Index AI Content
                 </Button>
           </CardContent>
       </Card>

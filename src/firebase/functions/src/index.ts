@@ -1,4 +1,5 @@
 
+'use server';
 import * as logger from "firebase-functions/logger";
 import {
   onDocumentCreated,
@@ -10,6 +11,8 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { resetMonthlyUsageCounters } from "./scheduled";
 import { initAdmin } from "../../../firebase/admin";
+import { nanoid } from "nanoid";
+import { z } from 'zod';
 
 // Initialize Firebase Admin SDK. This is essential for all functions in this file.
 initAdmin().catch(error => {
@@ -94,34 +97,136 @@ export const setSuperAdmin = onCall({ region: 'us-central1' }, async (request) =
         // 4. Find the target user by their email
         const targetUser = await adminAuth.getUserByEmail(email);
         const targetUid = targetUser.uid;
+        
+        // Prevent a SuperAdmin from revoking their own role.
+        if (!grant && callerUid === targetUid) {
+            throw new HttpsError('failed-precondition', 'SuperAdmins cannot revoke their own privileges.');
+        }
+
         const targetAdminRef = db.collection('superAdmins').doc(targetUid);
 
-        // 5. Perform the grant or revoke action
-        if (grant) {
-            await targetAdminRef.set({
-                role: 'superadmin',
-                grantedAt: FieldValue.serverTimestamp(),
-                grantedBy: callerUid,
-            });
-            // Set the custom claim
-            await adminAuth.setCustomUserClaims(targetUid, { superAdmin: true });
-            logger.info(`SuperAdmin role granted to ${email} (UID: ${targetUid}) by ${callerUid}.`);
-            return { success: true, message: `SuperAdmin role granted to ${email}.` };
-        } else {
-            // Revoke
-            await targetAdminRef.delete();
-            // Remove the custom claim
-            await adminAuth.setCustomUserClaims(targetUid, { superAdmin: false });
-            logger.info(`SuperAdmin role revoked for ${email} (UID: ${targetUid}) by ${callerUid}.`);
-            return { success: true, message: `SuperAdmin role revoked for ${email}.` };
-        }
+        // 5. Perform the grant or revoke action within a transaction for atomicity.
+        await db.runTransaction(async (transaction) => {
+             if (grant) {
+                // Grant the role
+                transaction.set(targetAdminRef, {
+                    role: 'superadmin',
+                    grantedAt: FieldValue.serverTimestamp(),
+                    grantedBy: callerUid,
+                });
+            } else {
+                // Revoke the role
+                transaction.delete(targetAdminRef);
+            }
+        });
+        
+        // 6. Set or remove the custom claim after the transaction succeeds.
+        await adminAuth.setCustomUserClaims(targetUid, { superAdmin: grant });
+
+        logger.info(`SuperAdmin role ${grant ? 'granted to' : 'revoked for'} ${email} (UID: ${targetUid}) by ${callerUid}.`);
+        return { success: true, message: `SuperAdmin role ${grant ? 'granted to' : 'revoked for'} ${email}.` };
+
     } catch (error: any) {
         if (error.code === 'auth/user-not-found') {
             logger.warn(`Attempted to grant SuperAdmin to non-existent user: ${email}`);
             throw new HttpsError('not-found', `No user with the email ${email} exists.`);
         }
         logger.error(`Error in setSuperAdmin function for email ${email}:`, error);
+        // If it's already an HttpsError, rethrow it
+        if (error instanceof HttpsError) {
+            throw error;
+        }
         throw new HttpsError('internal', 'An unexpected error occurred.');
+    }
+});
+
+
+// Define the expected schema for incoming data for sendMessage
+const SendMessageSchema = z.object({
+    propertyId: z.string().min(5),
+    question: z.string().min(1).max(500),
+    role: z.enum(['user', 'assistant']),
+});
+
+/**
+ * Cloud Function: sendMessage
+ * Handles secure writing of new chat messages to Firestore.
+ */
+export const sendMessage = onCall({ region: 'us-central1' }, async (request) => {
+    // 1. AUTHENTICATION CHECK
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'User must be signed in to send a message.');
+    }
+    const userId = request.auth.uid;
+
+    // 2. INPUT VALIDATION (Zod Guardrail)
+    let validatedData;
+    try {
+        validatedData = SendMessageSchema.parse(request.data);
+    } catch (error: any) {
+        logger.error("sendMessage validation failed:", error);
+        throw new HttpsError('invalid-argument', 'Invalid message data format.', error.issues);
+    }
+    
+    const { propertyId, question, role } = validatedData;
+    
+    const propertyRef = db.collection('properties').doc(propertyId);
+    const clientRef = db.collection('clients').doc(userId);
+    const chatLogRef = propertyRef.collection('chatLogs').doc(userId);
+
+    const message = {
+        id: nanoid(),
+        role: role,
+        content: question,
+        createdAt: FieldValue.serverTimestamp(),
+    };
+
+    try {
+        // 3. ATOMIC WRITE LOGIC
+        await db.runTransaction(async (transaction) => {
+            const propertyDoc = await transaction.get(propertyRef);
+            if (!propertyDoc.exists) {
+                throw new HttpsError('not-found', `Property with ID ${propertyId} does not exist.`);
+            }
+            
+            const chatDoc = await transaction.get(chatLogRef);
+
+            if (chatDoc.exists) {
+                // Safe UPDATE: Document exists, append message using arrayUnion
+                transaction.update(chatLogRef, {
+                    messages: FieldValue.arrayUnion(message),
+                    lastUpdatedAt: FieldValue.serverTimestamp(),
+                });
+            } else {
+                // Safe CREATE: Document does not exist, initialize it.
+                // First, ensure the client document exists.
+                const clientDoc = await transaction.get(clientRef);
+                if (!clientDoc.exists) {
+                    const ownerId = propertyDoc.data()?.ownerId;
+                    transaction.set(clientRef, {
+                        id: userId,
+                        ownerId: ownerId,
+                        name: `Visitor (${userId.substring(0, 6)})`,
+                    });
+                }
+                // Now create the chat log document.
+                transaction.set(chatLogRef, {
+                    messages: [message],
+                    lastUpdatedAt: FieldValue.serverTimestamp(),
+                    clientId: userId,
+                    propertyId: propertyId,
+                });
+            }
+        });
+        
+        return { success: true };
+
+    } catch (error) {
+        logger.error(`CRITICAL WRITE ERROR in sendMessage for user ${userId} in property ${propertyId}:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'Server failed to process message.');
     }
 });
 

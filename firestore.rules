@@ -9,16 +9,16 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return request.auth != null && request.auth.uid == userId;
     }
 
-    // 🔑 CRITICAL FIX: Use Database Check
+    // 🔑 CRITICAL FIX: Use Database Check (must be active for privileges to work)
     function isSuperAdmin() {
-      // Check if the user's UID exists as a document in the 'superAdmins' collection.
+      // Checks if the user's UID exists as a document in the 'superAdmins' collection.
       return request.auth != null && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
     }
     
-    // --- SuperAdmins Collection (STABLE FIX) ---
+    // --- SuperAdmins Collection (STABLE FIX: Breaks the circular list dependency) ---
     match /superAdmins/{userId} {
         // 1. Client Read (get): Allows the user to read their own document to get their role.
         allow get: if isOwner(userId);
@@ -63,14 +63,27 @@ service cloud.firestore {
         allow read, update: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin());
       }
 
+      // --- ChatLogs Subcollection: FINAL STABLE STRUCTURE ---
       match /chatLogs/{clientId} {
+        
+        // Define helper functions (keep them for management read/list checks)
         function propertyOwnerId() {
             return get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId;
         }
         
-        allow create: if isSignedIn();
-        // The client, property owner, or a SuperAdmin can read chat logs.
-        allow read, update: if isSignedIn() && (isOwner(clientId) || isOwner(propertyOwnerId()) || isSuperAdmin());
+        function canManageChat() {
+            // Includes the exists() guardrail for stability
+            return exists(/databases/$(database)/documents/properties/$(propertyId)) && (
+                isOwner(propertyOwnerId()) || 
+                isSuperAdmin()
+            );
+        }
+        
+        // 1. DENY ALL DIRECT WRITES: All writes (create/update) must go through the Cloud Function.
+        allow write: if false; 
+        
+        // 2. READ ACCESS: Visitor can read their own log (for real-time updates). Management can read/list all.
+        allow read, list: if isOwner(clientId) || canManageChat();
       }
     }
 
@@ -89,14 +102,15 @@ service cloud.firestore {
     }
 
     match /clients/{clientId} {
-      allow create: if isSignedIn();
-      // The client, the associated property owner, or a SuperAdmin can read client info.
-      allow read: if isSignedIn() && (
-          isOwner(clientId) ||
-          isSuperAdmin() ||
-          (resource.data.ownerId != null && isOwner(resource.data.ownerId))
-      );
-      allow update: if false; // No client-side updates.
+      // 🔑 FIX: Allow the current user (including anonymous) to CREATE the document 
+      // with their own UID, and READ it. This is secure because of the isOwner check.
+      allow read, create: if isOwner(clientId);
+      
+      // Also keep the management access for reading client data:
+      allow read: if isSuperAdmin() || (resource.data.ownerId != null && isOwner(resource.data.ownerId));
+
+      // Deny updates/deletes from the client side.
+      allow update, delete: if false;
     }
   }
 }

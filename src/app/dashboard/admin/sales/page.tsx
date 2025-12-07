@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useUser, useFirestore, useMemoFirebase, useCollectionGroup, errorEmitter, FirestorePermissionError, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { collectionGroup, query, orderBy, Timestamp, doc, updateDoc } from 'firebase/firestore';
@@ -47,22 +47,30 @@ export default function SalesInquiriesPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
-  // Securely check if the current user is a SuperAdmin.
-  const superAdminRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
-    [firestore, user]
-  );
-  const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc;
-
-  // This effect ensures only SuperAdmins can access this page
   useEffect(() => {
-    if (!isUserLoading && !isSuperAdminLoading && !isSuperAdmin) {
-        toast({ variant: 'destructive', title: 'Access Denied' });
-        router.push('/dashboard');
+    const checkAdminStatus = async () => {
+        if (user) {
+            const idTokenResult = await user.getIdTokenResult(true);
+            const isAdmin = idTokenResult.claims.superAdmin === true;
+            setIsSuperAdmin(isAdmin);
+            if (!isAdmin) {
+                toast({ variant: 'destructive', title: 'Access Denied' });
+                router.push('/dashboard');
+            }
+        }
+        setIsCheckingAdmin(false);
+    };
+    if (!isUserLoading) {
+        if (!user) {
+            router.push('/login');
+        } else {
+            checkAdminStatus();
+        }
     }
-  }, [user, isUserLoading, isSuperAdmin, isSuperAdminLoading, router, toast]);
+  }, [user, isUserLoading, router, toast]);
 
   const inquiriesQuery = useMemoFirebase(
     () =>
@@ -96,7 +104,17 @@ export default function SalesInquiriesPage() {
     }
   };
 
-  const isLoading = isUserLoading || areInquiriesLoading || isSuperAdminLoading;
+  const isLoading = isUserLoading || areInquiriesLoading || isCheckingAdmin;
+
+  if (isLoading) {
+    return (
+         <main className="flex-1 p-4 md:p-6 lg:p-8">
+            <div className="flex items-center justify-center h-full min-h-[calc(100vh-10rem)]">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+         </main>
+    );
+  }
 
   return (
     <main className="flex-1 p-4 md:p-6 lg:p-8">
@@ -110,11 +128,7 @@ export default function SalesInquiriesPage() {
 
         <Card>
           <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex items-center justify-center p-8 h-80">
-                <Loader2 className="h-8 w-8 animate-spin" />
-              </div>
-            ) : inquiries && inquiries.length > 0 ? (
+            {inquiries && inquiries.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>

@@ -2,10 +2,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser } from '@/firebase';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { doc } from 'firebase/firestore';
 
 /**
  * This component acts as a router guard for the /dashboard route.
@@ -14,45 +13,38 @@ import { doc } from 'firebase/firestore';
 export default function DashboardRouterGuard() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const firestore = useFirestore();
-
-  // ✅ CORRECT CODE: Only runs a safe GET operation
-  const superAdminRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
-    [firestore, user]
-  );
-  const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
 
   useEffect(() => {
-    // Force a token refresh on user load to get latest custom claims.
-    if (user) {
-        user.getIdTokenResult(true);
-    }
-    
-    // Wait until both the user and the superAdmin check are finished loading.
-    if (isUserLoading || isSuperAdminLoading) {
-      return;
-    }
+    const checkRoleAndRedirect = async () => {
+        if (isUserLoading) {
+            return; // Wait until user object is loaded
+        }
+        
+        if (!user) {
+            router.replace('/login');
+            return;
+        }
 
-    // If there's no user after loading, redirect to login.
-    if (!user) {
-      router.replace('/login');
-      return;
-    }
-    
-    // Check if the document exists
-    const isSuperAdmin = !!superAdminDoc;
+        try {
+            // Force a refresh of the ID token to get the latest custom claims.
+            const idTokenResult = await user.getIdTokenResult(true);
+            const isSuperAdmin = idTokenResult.claims.superAdmin === true;
 
-    // 🔑 GUARANTEED REDIRECT LOGIC:
-    // This logic ensures a clean and exclusive redirect based on role hierarchy.
-    if (isSuperAdmin) {
-      // A SuperAdmin is found, redirect to the admin dashboard immediately.
-      router.replace('/dashboard/admin');
-    } else {
-      // If not a SuperAdmin, they must be a regular owner. Redirect to the owner dashboard.
-      router.replace('/dashboard/owner');
-    }
-  }, [user, isUserLoading, superAdminDoc, isSuperAdminLoading, router]);
+            if (isSuperAdmin) {
+                router.replace('/dashboard/admin');
+            } else {
+                router.replace('/dashboard/owner');
+            }
+        } catch (error) {
+            console.error("Error getting user token or claims:", error);
+            // Default to owner dashboard on error
+            router.replace('/dashboard/owner');
+        }
+    };
+    
+    checkRoleAndRedirect();
+
+  }, [user, isUserLoading, router]);
 
   // Display a loading indicator while the authentication and role checks are in progress.
   return (

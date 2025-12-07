@@ -57,7 +57,7 @@ export async function getCollectionData(collectionPath: string): Promise<{ data:
             errorMessage = 'Invalid authentication token provided.';
         } else if (error.message.includes('insufficient permissions')) {
             errorMessage = 'Permission Denied: The server environment lacks the necessary IAM roles.';
-        } else if (error.message.includes('permission-denied')) {
+        } else if (error.message.includes('permission-denied') || error.message.includes('not a SuperAdmin')) {
              errorMessage = 'Permission Denied: Caller is not a SuperAdmin.';
         }
 

@@ -51,9 +51,9 @@ function transformFirestoreProperty(
     address: firestoreProperty.address,
     ownerId: firestoreProperty.ownerId,
     status: firestoreProperty.status,
-    reviewCount: firestoreProperty.reviewCount,
-    ratingSum: firestoreProperty.ratingSum,
-    averageRating: firestoreProperty.averageRating,
+    reviewCount: firestoreProperty.reviewCount || 0,
+    ratingSum: firestoreProperty.ratingSum || 0,
+    averageRating: firestoreProperty.averageRating || 0,
     media: firestoreProperty.media?.map((url, index) => ({
       id: `firestore-img-${index}`,
       imageUrl: url,
@@ -66,6 +66,10 @@ function transformFirestoreProperty(
     reviews: publishedReviews,
     recommendations: recommendations,
     owner: owner,
+    messageCount: firestoreProperty.messageCount,
+    messageQuotaResetDate: firestoreProperty.messageQuotaResetDate instanceof Timestamp
+        ? firestoreProperty.messageQuotaResetDate.toDate().toISOString()
+        : firestoreProperty.messageQuotaResetDate,
   };
 }
 
@@ -107,7 +111,7 @@ export default async function PropertyPage({
     ]);
 
     // 2. Process the snapshots into data arrays
-    const faqs = faqsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as FirestoreFAQ[];
+    const faqs = faqsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(faq => faq.id !== '--USAGE--') as FirestoreFAQ[];
     const recommendations = recommendationsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as FirestoreRecommendation[];
     const reviews = reviewsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as FirestoreReview[];
     const owner = ownerDoc.exists() ? ({ id: ownerDoc.id, ...ownerDoc.data() } as Owner) : undefined;

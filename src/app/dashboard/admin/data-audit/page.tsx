@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -21,7 +20,7 @@ export default function DataAuditPage() {
     const auth = useAuth();
 
     const handleFetchData = async () => {
-        if (!auth) {
+        if (!auth?.currentUser) {
             toast({ variant: 'destructive', title: 'Not authenticated!' });
             return;
         }
@@ -31,13 +30,9 @@ export default function DataAuditPage() {
         startFetching(async () => {
             try {
                 // Get the current user's ID token to pass for server-side verification
-                const user = auth.currentUser;
-                if (!user) {
-                    throw new Error("User not logged in.");
-                }
-                const idToken = await user.getIdToken();
+                const idToken = await auth.currentUser!.getIdToken();
 
-                // Manually set the Authorization header for the Server Action
+                // Create a temporary fetch override to add the Authorization header
                 const originalFetch = global.fetch;
                 global.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
                     const headers = new Headers(init?.headers);
@@ -47,7 +42,7 @@ export default function DataAuditPage() {
 
                 const result = await getCollectionData(path);
                 
-                // Restore original fetch
+                // Restore the original fetch function
                 global.fetch = originalFetch;
 
                 if (result.success) {
@@ -126,4 +121,3 @@ export default function DataAuditPage() {
         </main>
     );
 }
-

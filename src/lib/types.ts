@@ -31,12 +31,12 @@ export type Review = {
     clientId?: string; 
     reviewerName: string;
     rating: number; 
-    ratingCleanliness?: number;
-    ratingAccuracy?: number;
-    ratingCheckIn?: number;
-    ratingCommunication?: number;
-    ratingLocation?: number;
-    ratingValue?: number;
+    ratingCleanliness: number;
+    ratingAccuracy: number;
+    ratingCheckIn: number;
+    ratingCommunication: number;
+    ratingLocation: number;
+    ratingValue: number;
     comment: string;
     createdAt: string; // Should always be ISO string on client
     stayDate?: string;
@@ -138,7 +138,7 @@ export type Message = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  createdAt: Timestamp;
+  createdAt: string | Timestamp;
 };
 
 export type BookingInquiry = {

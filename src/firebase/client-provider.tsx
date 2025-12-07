@@ -4,6 +4,9 @@ import React, { useMemo, type ReactNode } from 'react';
 import { FirebaseProvider } from '@/firebase/provider';
 import { initializeFirebase } from '@/firebase';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
 
 interface FirebaseClientProviderProps {
   children: ReactNode;
@@ -26,4 +29,15 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
       {children}
     </FirebaseProvider>
   );
+}
+
+const queryClient = new QueryClient();
+
+export function ReactQueryProvider({ children }: { children: React.ReactNode }) {
+    return (
+        <QueryClientProvider client={queryClient}>
+            {children}
+            <ReactQueryDevtools initialIsOpen={false} />
+        </QueryClientProvider>
+    );
 }

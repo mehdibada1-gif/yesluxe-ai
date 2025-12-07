@@ -148,25 +148,39 @@ export default function AdminDashboardPage() {
   
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [isGranting, setIsGranting] = useState(false);
-
-  // Securely check if the current user is a SuperAdmin.
-  const superAdminRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
-    [firestore, user]
-  );
-  const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
   useEffect(() => {
-    if (!isUserLoading && user) {
-        // Force token refresh to get latest claims
-        user.getIdTokenResult(true);
+    const checkAdminStatus = async () => {
+        if (user) {
+            try {
+                // Force a refresh of the ID token to get the latest custom claims.
+                const idTokenResult = await user.getIdTokenResult(true);
+                const isAdmin = idTokenResult.claims.superAdmin === true;
+                setIsSuperAdmin(isAdmin);
+                
+                if (!isAdmin) {
+                    toast({ variant: 'destructive', title: 'Access Denied' });
+                    router.push('/dashboard');
+                }
+            } catch (error) {
+                console.error("Error checking admin status:", error);
+                setIsSuperAdmin(false);
+                router.push('/dashboard');
+            }
+        }
+        setIsCheckingAdmin(false);
+    };
+    
+    if (!isUserLoading) {
+        if (!user) {
+            router.push('/login');
+        } else {
+            checkAdminStatus();
+        }
     }
-    if (!isUserLoading && !isSuperAdminLoading && !isSuperAdmin) {
-      toast({ variant: 'destructive', title: 'Access Denied' });
-      router.push('/dashboard');
-    }
-  }, [isUserLoading, isSuperAdminLoading, isSuperAdmin, toast, router, user]);
+  }, [user, isUserLoading, router, toast]);
   
   const handleGrantAccess = async () => {
     if (!functions) {
@@ -203,7 +217,7 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const isLoading = isUserLoading || isSuperAdminLoading;
+  const isLoading = isUserLoading || isCheckingAdmin;
 
   if (isLoading) {
      return (
@@ -228,6 +242,17 @@ export default function AdminDashboardPage() {
         </header>
         
         <div className="grid md:grid-cols-3 gap-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Users /> All Owners</CardTitle>
+                    <CardDescription>View all registered owners on the platform.</CardDescription>
+                </CardHeader>
+                <CardFooter>
+                    <Button asChild variant="outline">
+                        <Link href="/dashboard/admin/owners">Manage Owners</Link>
+                    </Button>
+                </CardFooter>
+            </Card>
              <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Building /> All Properties</CardTitle>

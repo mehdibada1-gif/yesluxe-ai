@@ -24,7 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useTransition } from 'react';
 import { Loader2, Sparkles, MapPin, Save, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
-import { handleGenerateContent, handleImportFromUrl } from '@/app/actions';
+import { handleGenerateContent, handleImportFromUrl, handleIndexProperty } from '@/app/actions';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -43,6 +43,7 @@ export default function NewPropertyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, startGenerating] = useTransition();
   const [isImporting, startImporting] = useTransition();
+  const [isIndexing, startIndexing] = useTransition();
   const [aiKeywords, setAiKeywords] = useState('');
   const [propertyType, setPropertyType] = useState('Villa');
   const [importUrl, setImportUrl] = useState('');
@@ -194,7 +195,24 @@ export default function NewPropertyPage() {
                 title: status === 'published' ? "Property Published!" : "Draft Saved!",
                 description: `${values.name} has been successfully saved.`,
             });
-            router.push(`/dashboard/property/${newPropertyId}`);
+            // After successfully creating, trigger the indexing flow.
+            startIndexing(async () => {
+                try {
+                    await handleIndexProperty(newPropertyId);
+                    toast({
+                        title: "Content Indexing Started",
+                        description: "Your property's data is being indexed for the AI concierge. This may take a moment."
+                    });
+                } catch (e) {
+                    console.error("Indexing error", e);
+                    toast({
+                        variant: 'destructive',
+                        title: "Indexing Failed",
+                        description: "Could not index property data."
+                    });
+                }
+            });
+            router.push(`/dashboard/property/${newPropertyId}/edit`);
         })
         .catch(serverError => {
             const permissionError = new FirestorePermissionError({
@@ -387,12 +405,12 @@ export default function NewPropertyPage() {
                 <Button type="button" variant="outline" asChild>
                     <Link href="/dashboard/properties">Cancel</Link>
                 </Button>
-                <Button type="submit" value="draft" variant="secondary" disabled={isSubmitting || isGenerating || isImporting}>
+                <Button type="submit" value="draft" variant="secondary" disabled={isSubmitting || isGenerating || isImporting || isIndexing}>
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                     Save as Draft
                 </Button>
-                <Button type="submit" value="published" disabled={isSubmitting || isGenerating || isImporting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button type="submit" value="published" disabled={isSubmitting || isGenerating || isImporting || isIndexing}>
+                    {(isSubmitting || isIndexing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Publish
               </Button>
             </div>
