@@ -27,7 +27,7 @@ export default function ModerationPage() {
         [firestore, user]
     );
     const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-    const isSuperAdmin = !!superAdminDoc;
+    const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
 
     useEffect(() => {
         if (!isUserLoading && !isSuperAdminLoading && !isSuperAdmin) {

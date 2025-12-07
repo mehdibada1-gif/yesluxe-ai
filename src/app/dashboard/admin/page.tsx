@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useUser, useFirestore, useMemoFirebase, useCollection, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { collection, doc, getDocs, query, where } from 'firebase/firestore';
-import { Loader2, ShieldCheck, UserPlus, Users, ShieldAlert, Database, Trash2 } from 'lucide-react';
+import { Loader2, ShieldCheck, UserPlus, Users, ShieldAlert, Database, Trash2, Building, PlusCircle, Send } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Owner } from '@/lib/types';
@@ -26,8 +26,8 @@ function SuperAdminList({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     const [revokingId, setRevokingId] = useState<string | null>(null);
 
     const superAdminsQuery = useMemoFirebase(
-      () => (firestore && isSuperAdmin ? query(collection(firestore, 'superAdmins')) : null),
-      [firestore, isSuperAdmin]
+      () => (firestore ? query(collection(firestore, 'superAdmins')) : null),
+      [firestore]
     );
     const { data: superAdminDocs, isLoading: areSuperAdminsLoading } = useCollection(superAdminsQuery);
 
@@ -52,8 +52,14 @@ function SuperAdminList({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                 setIsLoadingOwners(false);
             }
         };
-        fetchOwners();
-    }, [firestore, superAdminDocs]);
+        // Only fetch if the query is ready and has results
+        if(isSuperAdmin && superAdminDocs) {
+            fetchOwners();
+        } else if (!areSuperAdminsLoading) {
+            // If not a super admin or no docs, stop loading
+            setIsLoadingOwners(false);
+        }
+    }, [firestore, superAdminDocs, isSuperAdmin, areSuperAdminsLoading]);
 
     const handleRevokeAccess = async (email: string, id: string) => {
         if (!functions) {
@@ -133,7 +139,7 @@ function SuperAdminList({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 }
 
 
-export default function AdminPage() {
+export default function AdminDashboardPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -149,14 +155,18 @@ export default function AdminPage() {
     [firestore, user]
   );
   const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc;
+  const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
 
   useEffect(() => {
+    if (!isUserLoading && user) {
+        // Force token refresh to get latest claims
+        user.getIdTokenResult(true);
+    }
     if (!isUserLoading && !isSuperAdminLoading && !isSuperAdmin) {
       toast({ variant: 'destructive', title: 'Access Denied' });
       router.push('/dashboard');
     }
-  }, [isUserLoading, isSuperAdminLoading, isSuperAdmin, toast, router]);
+  }, [isUserLoading, isSuperAdminLoading, isSuperAdmin, toast, router, user]);
   
   const handleGrantAccess = async () => {
     if (!functions) {
@@ -211,21 +221,32 @@ export default function AdminPage() {
     <main className="flex-1 p-4 md:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         <header>
-          <h1 className="text-3xl font-headline font-bold tracking-tight">User Management</h1>
+          <h1 className="text-3xl font-headline font-bold tracking-tight">SuperAdmin Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage SuperAdmin privileges and platform-wide settings.
+            Manage users, properties, content, and platform-wide settings from one place.
           </p>
         </header>
         
-        <div className="grid md:grid-cols-2 gap-6">
-            <Card>
+        <div className="grid md:grid-cols-3 gap-6">
+             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><ShieldAlert /> Content Moderation</CardTitle>
-                    <CardDescription>View and manage reported reviews from across the platform.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><Building /> All Properties</CardTitle>
+                    <CardDescription>View, edit, and manage all properties on the platform.</CardDescription>
                 </CardHeader>
                 <CardFooter>
                     <Button asChild variant="outline">
-                        <Link href="/dashboard/admin/moderation">Go to Moderation Center</Link>
+                        <Link href="/dashboard/admin/properties">Manage Properties</Link>
+                    </Button>
+                </CardFooter>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><ShieldAlert /> Content Moderation</CardTitle>
+                    <CardDescription>Review and manage reported reviews from across the platform.</CardDescription>
+                </CardHeader>
+                <CardFooter>
+                    <Button asChild variant="outline">
+                        <Link href="/dashboard/admin/moderation">Go to Moderation</Link>
                     </Button>
                 </CardFooter>
             </Card>
@@ -237,6 +258,17 @@ export default function AdminPage() {
                 <CardFooter>
                     <Button asChild variant="outline">
                         <Link href="/dashboard/admin/data-audit">Go to Data Audit</Link>
+                    </Button>
+                </CardFooter>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Send /> Sales Inquiries</CardTitle>
+                    <CardDescription>Manage contact requests for the Premium plan.</CardDescription>
+                </CardHeader>
+                <CardFooter>
+                    <Button asChild variant="outline">
+                        <Link href="/dashboard/admin/sales">Manage Inquiries</Link>
                     </Button>
                 </CardFooter>
             </Card>
@@ -267,5 +299,3 @@ export default function AdminPage() {
     </main>
   );
 }
-
-    

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, useEffect, useMemo } from 'react';
@@ -79,7 +80,7 @@ export default function AnalyticsPage() {
     [firestore, user]
   );
   const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc;
+  const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
 
   // Redirect if not logged in
   useEffect(() => {

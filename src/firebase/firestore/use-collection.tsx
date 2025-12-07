@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -34,7 +35,8 @@ export interface InternalQuery extends Query<DocumentData> {
     path: {
       canonicalString(): string;
       toString(): string;
-    }
+    },
+    collectionGroup: string | null;
   }
 }
 
@@ -86,21 +88,28 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        // This logic extracts the path from either a ref or a query
-        const path: string =
-          memoizedTargetRefOrQuery.type === 'collection'
-            ? (memoizedTargetRefOrQuery as CollectionReference).path
-            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
+        let path: string = 'unknown_path'; // Default path to prevent error
 
+        // SAFELY try to get the path; the internal structure might be missing 
+        // when a security rule error occurs, which is what caused the crash.
+        try {
+            path = 
+                memoizedTargetRefOrQuery.type === 'collection'
+                    ? (memoizedTargetRefOrQuery as CollectionReference).path
+                    : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
+        } catch (e) {
+            // If the path extraction fails, we keep the default 'unknown_path'.
+        }
+    
         const contextualError = new FirestorePermissionError({
-          operation: 'list',
-          path,
+            operation: 'list',
+            path,
         })
-
+    
         setError(contextualError)
         setData(null)
         setIsLoading(false)
-
+    
         // trigger global error propagation
         errorEmitter.emit('permission-error', contextualError);
       }
@@ -142,7 +151,7 @@ export function useCollectionGroup<T = any>(
 
     const unsubscribe = onSnapshot(memoizedQuery, 
       (snapshot) => {
-        const results = snapshot.docs.map(doc => ({ ...(doc.data() as T), id: doc.id }));
+        const results = snapshot.docs.map(doc => ({ ...(doc.data() as T), id: doc.id, ...('ownerId' in doc.data() ? {} : { ownerId: doc.ref.parent.parent?.id }) }));
         setData(results);
         setIsLoading(false);
       },

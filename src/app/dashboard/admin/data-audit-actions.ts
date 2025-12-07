@@ -4,7 +4,6 @@ import { initAdmin } from '@/firebase/admin';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { headers } from 'next/headers';
-import { IdTokenResult } from 'firebase/auth';
 
 /**
  * A server-side action to fetch all documents from a specified collection or subcollection path using Admin privileges.
@@ -29,9 +28,8 @@ export async function getCollectionData(collectionPath: string): Promise<{ data:
         
         // 2. Verify the ID token and check for SuperAdmin custom claim
         const decodedToken = await auth.verifyIdToken(idToken);
-        const superAdminDoc = await db.collection('superAdmins').doc(decodedToken.uid).get();
-
-        if (!superAdminDoc.exists) {
+        
+        if (decodedToken.superAdmin !== true) {
              return { data: [], success: false, error: 'Permission Denied: Caller is not a SuperAdmin.' };
         }
         
@@ -59,6 +57,8 @@ export async function getCollectionData(collectionPath: string): Promise<{ data:
             errorMessage = 'Invalid authentication token provided.';
         } else if (error.message.includes('insufficient permissions')) {
             errorMessage = 'Permission Denied: The server environment lacks the necessary IAM roles.';
+        } else if (error.message.includes('permission-denied')) {
+             errorMessage = 'Permission Denied: Caller is not a SuperAdmin.';
         }
 
         return { data: [], success: false, error: errorMessage };

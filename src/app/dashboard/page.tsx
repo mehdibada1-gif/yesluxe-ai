@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRouter } from 'next/navigation';
@@ -15,7 +16,7 @@ export default function DashboardRouterGuard() {
   const router = useRouter();
   const firestore = useFirestore();
 
-  // Securely check if the current user is a SuperAdmin using a direct document read
+  // ✅ CORRECT CODE: Only runs a safe GET operation
   const superAdminRef = useMemoFirebase(
     () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
     [firestore, user]
@@ -23,6 +24,11 @@ export default function DashboardRouterGuard() {
   const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
 
   useEffect(() => {
+    // Force a token refresh on user load to get latest custom claims.
+    if (user) {
+        user.getIdTokenResult(true);
+    }
+    
     // Wait until both the user and the superAdmin check are finished loading.
     if (isUserLoading || isSuperAdminLoading) {
       return;
@@ -34,10 +40,11 @@ export default function DashboardRouterGuard() {
       return;
     }
     
-    // Determine the user's role.
+    // Check if the document exists
     const isSuperAdmin = !!superAdminDoc;
 
-    // Execute role-based redirection.
+    // 🔑 GUARANTEED REDIRECT LOGIC:
+    // This logic ensures a clean and exclusive redirect based on role hierarchy.
     if (isSuperAdmin) {
       // A SuperAdmin is found, redirect to the admin dashboard immediately.
       router.replace('/dashboard/admin');

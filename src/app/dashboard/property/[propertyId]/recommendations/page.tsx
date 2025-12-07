@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useTransition } from 'react';
@@ -174,8 +175,8 @@ export default function ManageRecommendationsPage() {
     () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
     [firestore, user]
   );
-  const { data: superAdminDoc } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc;
+  const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
+  const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
 
   const recommendationsQuery = useMemoFirebase(
     () =>

@@ -6,6 +6,27 @@ To get started, take a look at src/app/page.tsx.
 
 ---
 
+## Vercel Deployment Guide
+
+To deploy this project to Vercel, you need to set up the required environment variables.
+
+### 1. Set the Gemini API Key
+
+The AI chat functionality relies on the Google Gemini API. You must provide your API key as an environment variable in your Vercel project.
+
+1.  **Get your API Key:** Obtain your Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey).
+2.  **Go to your Vercel Project Settings:** Open your project in Vercel and navigate to the "Settings" tab.
+3.  **Go to Environment Variables:** In the settings menu, click on "Environment Variables".
+4.  **Add the Variable:**
+    *   **Name:** `GEMINI_API_KEY`
+    *   **Value:** Paste the API key you obtained from Google AI Studio.
+    *   Ensure the variable is available for all environments (Production, Preview, and Development).
+5.  **Save and Redeploy:** Save the variable. Vercel will trigger a new deployment to apply the changes.
+
+After the new deployment is complete, the AI chat functionality should work correctly.
+
+---
+
 ## How to Push to a New Git Repository
 
 If you are encountering a `(push declined due to repository rule violations)` error, it likely means your repository's `main` branch is protected. This is a good security practice!

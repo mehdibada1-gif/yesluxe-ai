@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -54,15 +55,15 @@ export default function PropertiesPage() {
   );
   const { data: owner, isLoading: isOwnerLoading } = useDoc<Owner>(ownerRef);
 
+    // Securely check if the current user is a SuperAdmin.
     const superAdminRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
-    [firestore, user]
-  );
-  const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc;
+        () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
+        [firestore, user]
+    );
+    const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
+    const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
 
   // This query is now simplified: it ONLY fetches properties for the current owner.
-  // The SuperAdmin view is handled by a different page.
   const propertiesQuery = useMemoFirebase(
     () => {
       if (!firestore || !user) return null;
@@ -77,6 +78,7 @@ export default function PropertiesPage() {
   const canCreateProperty = useMemo(() => {
     if (isSuperAdmin) return true;
     if (!owner || !properties) return false;
+    
     const propertyCount = properties.length;
     switch (owner.subscriptionTier) {
         case 'free':
@@ -117,14 +119,7 @@ export default function PropertiesPage() {
     }
   };
 
-  useEffect(() => {
-    // If the user is a super admin, redirect them to the new admin properties page
-    if (!isSuperAdminLoading && isSuperAdmin) {
-      router.replace('/dashboard/admin/properties');
-    }
-  }, [isSuperAdmin, isSuperAdminLoading, router]);
-
-  if (isLoading || isSuperAdmin) {
+  if (isLoading) {
     return (
         <main className="flex-1 p-4 md:p-6 lg:p-8">
             <div className="flex items-center justify-between mb-8">

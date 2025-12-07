@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -6,7 +7,7 @@ import { collection, query, doc, getDocs } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, PlusCircle } from 'lucide-react';
 import { FirestoreProperty, Owner } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -100,9 +101,17 @@ export default function AdminPropertiesPage() {
   return (
     <main className="flex-1 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-headline font-bold tracking-tight">All Platform Properties</h1>
-          <p className="text-muted-foreground">A global view of every property on the platform.</p>
+        <header className="mb-8 flex justify-between items-center">
+            <div>
+                <h1 className="text-3xl font-headline font-bold tracking-tight">All Platform Properties</h1>
+                <p className="text-muted-foreground">A global view of every property on the platform.</p>
+            </div>
+             <Button asChild>
+                <Link href="/dashboard/properties/new">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Create New Property
+                </Link>
+            </Button>
         </header>
 
         <Card>

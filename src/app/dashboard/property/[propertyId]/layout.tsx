@@ -47,7 +47,7 @@ export default function PropertyManagementLayout({
     [firestore, user]
   );
   const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc;
+  const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
 
 
   useEffect(() => {
@@ -228,5 +228,3 @@ export default function PropertyManagementLayout({
     </main>
   );
 }
-
-    

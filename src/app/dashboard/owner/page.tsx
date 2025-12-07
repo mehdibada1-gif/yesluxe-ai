@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
@@ -33,19 +34,10 @@ export default function OwnerDashboardPage() {
   );
   const { data: owner, isLoading: isOwnerLoading } = useDoc<Owner>(ownerRef);
 
-  const superAdminRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
-    [firestore, user]
-  );
-  const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc;
-
-  // Query for properties. This page is now ONLY for the owner's view.
+  // This query is now exclusively for the logged-in owner.
   const propertiesQuery = useMemoFirebase(
     () => {
         if (!firestore || !user) return null;
-        // This page always shows properties for the logged-in user.
-        // The `/dashboard/properties` page handles the "view all" for superAdmins.
         return query(collection(firestore, 'properties'), where('ownerId', '==', user.uid));
     },
     [firestore, user]
@@ -54,8 +46,8 @@ export default function OwnerDashboardPage() {
   
   const canCreateProperty = useMemo(() => {
     if (!owner || !properties) return false;
-    // SuperAdmins can always create properties.
-    if (isSuperAdmin) return true;
+    // SuperAdmins can always create, though they'd likely use their own dashboard.
+    if (owner.subscriptionTier === 'premium') return true; 
     
     const propertyCount = properties.length;
     switch (owner.subscriptionTier) {
@@ -63,15 +55,13 @@ export default function OwnerDashboardPage() {
             return propertyCount < 1;
         case 'pro':
             return propertyCount < 10;
-        case 'premium':
-            return true;
         default:
             return false;
     }
-  }, [owner, properties, isSuperAdmin]);
+  }, [owner, properties]);
 
 
-  if (isUserLoading || isSuperAdminLoading || arePropertiesLoading) {
+  if (isUserLoading || isOwnerLoading || arePropertiesLoading) {
     return (
         <main className="flex-1 p-4 md:p-6 lg:p-8">
              <div className="flex items-center justify-center h-full min-h-[calc(100vh-10rem)]">
@@ -98,10 +88,10 @@ export default function OwnerDashboardPage() {
         <div className="max-w-6xl mx-auto">
             <header className="mb-8">
                 <h1 className="text-3xl font-headline font-bold tracking-tight">
-                    {isSuperAdmin ? "Welcome SuperAdmin" : `Welcome back, ${user.displayName || user.email?.split('@')[0]}!`}
+                    Welcome back, {user.displayName || user.email?.split('@')[0]}!
                 </h1>
                 <p className="text-muted-foreground">
-                    {isSuperAdmin ? "This is your admin overview. Use the sidebar to manage all platform data." : "Here's a quick overview of your account."}
+                    Here's a quick overview of your account.
                 </p>
             </header>
 

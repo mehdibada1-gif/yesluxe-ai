@@ -161,8 +161,8 @@ function AISuggestions({ property, existingFaqs, onUseSuggestion, owner }: { pro
       () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
       [firestore, user]
     );
-    const { data: superAdminDoc } = useDoc(superAdminRef);
-    const isSuperAdmin = !!superAdminDoc;
+    const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
+    const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
 
     const chatLogsQuery = useMemoFirebase(
         () => (firestore ? query(collection(firestore, 'properties', property.id, 'chatLogs'), orderBy('lastUpdatedAt', 'desc')) : null),
@@ -357,7 +357,7 @@ export default function ManageFaqsPage() {
     [firestore, user]
   );
   const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc;
+  const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
 
   const faqsQuery = useMemoFirebase(() => {
     if (!firestore) return null;

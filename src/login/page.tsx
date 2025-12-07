@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -142,8 +143,9 @@ export default function LoginPage() {
   const [isForgotPasswordOpen, setForgotPasswordOpen] = useState(false);
 
   useEffect(() => {
+    // If the user object becomes available and we haven't started redirecting, push to dashboard.
     if (!isUserLoading && user && !redirecting) {
-      setRedirecting(true);
+      setRedirecting(true); // Mark that we are starting the redirect
       router.push('/dashboard');
     }
   }, [user, isUserLoading, router, redirecting]);
@@ -156,7 +158,7 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Let the useEffect handle the redirect
+      // Let the useEffect handle the redirect to avoid race conditions
     } catch (error: any) {
         let description = "An unexpected error occurred. Please try again.";
         switch (error.code) {
