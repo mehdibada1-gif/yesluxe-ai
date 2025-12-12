@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useState, useRef, useEffect, ReactNode, useTransition, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -13,16 +13,17 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ArrowRight, Bot, Loader2, User, Speaker } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
-import { nanoid } from 'nanoid';
 import { useUser } from '@/firebase';
 import { useParams } from 'next/navigation';
 import type { Message, Property } from '@/lib/types';
 import { marked } from 'marked';
 import { useToast } from '@/hooks/use-toast';
-import { getAIAnswer } from '@/app/ai-chat-actions';
-import { sendMessage, getChatLog } from '@/services/chatService';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Timestamp } from 'firebase/firestore';
+import { getAIAnswer } from '@/app/ai-chat-actions';
+import { getChatHistory } from '@/app/history-actions';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { nanoid } from 'nanoid';
 
 export interface ClientMessage {
   id: string;
@@ -100,6 +101,7 @@ export default function AIChatInterface({
   property: Property;
 }) {
   const [inputValue, setInputValue] = useState('');
+  const [isSending, startSending] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { user } = useUser();
   const params = useParams();
@@ -109,14 +111,13 @@ export default function AIChatInterface({
 
   const chatLogQueryKey = ['chatLog', propertyId, user?.uid];
 
-  const { data: messages, isLoading: isHistoryLoading } = useQuery({
+  const { data: fetchedMessages, isLoading: isHistoryLoading } = useQuery({
     queryKey: chatLogQueryKey,
-    queryFn: () => getChatLog(propertyId, user!.uid),
+    queryFn: () => getChatHistory(propertyId, user!.uid),
     enabled: !!user,
     select: (firestoreMessages): ClientMessage[] => {
         return firestoreMessages.map(msg => {
             const html = marked.parse(msg.content) as string;
-            // Ensure createdAt is always a Date object for consistent sorting
             const createdAt = msg.createdAt instanceof Timestamp 
                 ? msg.createdAt.toDate() 
                 : new Date(msg.createdAt as any);
@@ -128,7 +129,7 @@ export default function AIChatInterface({
                 createdAt: createdAt,
                 display: (
                     <div
-                        className="prose prose-sm dark:prose-invert max-w-none"
+                        className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0"
                         dangerouslySetInnerHTML={{ __html: html }}
                     />
                 ),
@@ -137,35 +138,28 @@ export default function AIChatInterface({
     }
   });
 
-  const sendMessageMutation = useMutation({
-    mutationFn: async (question: string) => {
-      if (!user) throw new Error("User not authenticated");
-      
-      // 1. Send the user's message via the service layer
-      await sendMessage(propertyId, question, 'user');
+  const messages = useMemo(() => {
+    const welcomeText = `Welcome to ${property.name}! You can use this chat if you have any questions about the property or any feature.`;
+    const welcomeMessage: ClientMessage = {
+      id: 'welcome-message',
+      role: 'assistant',
+      content: welcomeText,
+      createdAt: new Date(),
+      display: (
+        <div
+            className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0"
+            dangerouslySetInnerHTML={{ __html: marked.parse(welcomeText) as string }}
+        />
+      ),
+    };
+    
+    if (!fetchedMessages || fetchedMessages.length === 0) {
+        return [welcomeMessage];
+    }
+    
+    return fetchedMessages;
 
-      // 2. Invalidate the query to show the user's message immediately
-      await queryClient.invalidateQueries({ queryKey: chatLogQueryKey });
-
-      // 3. Get the AI's response
-      const aiResponse = await getAIAnswer({ property, question });
-      
-      // 4. Send the AI's message to be stored in the database
-      // We send it as the 'assistant' role
-      await sendMessage(propertyId, aiResponse.answer, 'assistant');
-
-      // 5. Invalidate again to show the AI's message
-      await queryClient.invalidateQueries({ queryKey: chatLogQueryKey });
-    },
-    onError: (error: any) => {
-      console.error('Error in sendMessageMutation:', error);
-      toast({
-          variant: 'destructive',
-          title: 'Error Processing Message',
-          description: error.message || 'Could not process your message. Please try again later.',
-      });
-    },
-  });
+  }, [fetchedMessages, property.name]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -180,78 +174,111 @@ export default function AIChatInterface({
     e.preventDefault();
     if (!inputValue || !user) return;
 
-    sendMessageMutation.mutate(inputValue);
+    const question = inputValue;
     setInputValue('');
+
+    startSending(async () => {
+        try {
+            await getAIAnswer({ propertyId: property.id, question, userId: user.uid });
+            await queryClient.invalidateQueries({ queryKey: chatLogQueryKey });
+
+        } catch (error: any) {
+            console.error('Error processing message:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Error Processing Message',
+                description: error.message || 'Could not process your message. Please try again later.',
+            });
+            await queryClient.invalidateQueries({ queryKey: chatLogQueryKey });
+        }
+    });
   };
 
-  const isPending = sendMessageMutation.isPending || isHistoryLoading;
+  const isPending = isSending || isHistoryLoading;
 
   return (
-    <Card className="flex flex-col h-[calc(100vh-10rem)] max-h-[800px]">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bot /> Visitor Concierge
-        </CardTitle>
-        <CardDescription>Ask me anything about this property!</CardDescription>
-      </CardHeader>
-      <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
-        <ScrollArea className="flex-1 pr-4" viewportRef={scrollAreaRef}>
-          <div className="space-y-4">
-            {isHistoryLoading && (
-                <div className="flex items-center justify-center p-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-            )}
-            {messages && messages.map(message => (
-              <div key={message.id} className="flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-md border shadow">
-                  {message.role === 'assistant' ? (
-                    <Bot className="h-5 w-5" />
-                  ) : (
-                    <User className="h-5 w-5" />
+      <Card className="flex flex-col h-[calc(100vh-10rem)] max-h-[800px] shadow-2xl shadow-black/20">
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-3 text-lg">
+            <Avatar className="h-10 w-10 border-2 border-primary">
+              <AvatarImage src={property.owner?.photoURL} alt={property.owner?.name} />
+              <AvatarFallback className="bg-primary text-primary-foreground">
+                <Bot />
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              Digital Concierge
+              <CardDescription>Powered by Yes-Luxe</CardDescription>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden p-4">
+          <ScrollArea className="flex-1 pr-4 -mr-4" viewportRef={scrollAreaRef}>
+            <div className="space-y-6">
+              {isHistoryLoading && (
+                  <div className="flex items-center justify-center p-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+              )}
+              {messages && messages.map(message => (
+                <div key={message.id} className="flex items-start gap-3">
+                  {message.role === 'assistant' && (
+                    <Avatar className="h-8 w-8 border">
+                      <AvatarImage src={property.owner?.photoURL} alt={property.owner?.name} />
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        <Bot size={20} />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div className="flex-1 rounded-lg border bg-card p-3 text-sm shadow-sm max-w-[85%]">
+                    {message.display}
+                  </div>
+                  {message.role === 'assistant' && (
+                    <SpeakButton text={message.content} />
+                  )}
+                   {message.role === 'user' && (
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        <User size={20} />
+                      </AvatarFallback>
+                    </Avatar>
                   )}
                 </div>
-                <div className="flex-1 rounded-lg border p-3 text-sm">
-                  {message.display}
+              ))}
+               {isSending && (
+                <div className="flex items-start gap-3 justify-end">
+                   <div className="flex-1 rounded-lg border p-3 text-sm bg-primary text-primary-foreground max-w-[85%]">
+                     <p>{inputValue}</p>
+                  </div>
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback><User size={20}/></AvatarFallback>
+                  </Avatar>
                 </div>
-                {message.role === 'assistant' && (
-                  <SpeakButton text={message.content} />
-                )}
-              </div>
-            ))}
-             {sendMessageMutation.isPending && (
-              <div className="flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-md border shadow">
-                  <User className="h-5 w-5" />
-                </div>
-                <div className="flex-1 rounded-lg border p-3 text-sm flex items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                </div>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-        <form
-          onSubmit={handleSubmit}
-          className="flex items-center gap-2 pt-4 border-t"
-        >
-          <Input
-            type="text"
-            placeholder="e.g., What's the wifi password?"
-            value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            disabled={isPending || !user}
-            className="flex-1"
-          />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={isPending || !inputValue || !user}
+              )}
+            </div>
+          </ScrollArea>
+          <form
+            onSubmit={handleSubmit}
+            className="flex items-center gap-2 pt-4 border-t"
           >
-            <ArrowRight className="h-5 w-5" />
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+            <Input
+              type="text"
+              placeholder={!user ? "Authenticating..." : "Ask me anything..."}
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              disabled={isPending || !user}
+              className="flex-1 h-11"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={isPending || !inputValue || !user}
+              className="h-11 w-11 shrink-0"
+            >
+              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
   );
 }

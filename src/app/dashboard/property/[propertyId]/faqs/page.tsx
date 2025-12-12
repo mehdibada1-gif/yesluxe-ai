@@ -26,7 +26,7 @@ import { useForm } from 'react-hook-form';
 import { nanoid } from 'nanoid';
 import { faqFormSchema, FaqFormValues } from '@/lib/schemas';
 import { FirestoreFAQ, Owner, FirestoreProperty, Message } from '@/lib/types';
-import { Loader2, Trash2, Edit, HelpCircle, Lock, ArrowUpCircle, Sparkles, PlusCircle, Wand2, Send, Bot as BotIcon, User as UserIcon, Dices, Search } from 'lucide-react';
+import { Loader2, Trash2, Edit, HelpCircle, Lock, ArrowUpCircle, Sparkles, PlusCircle, Wand2, Send, Bot as BotIcon, User as UserIcon, Dices, Search, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
 import { suggestNewFaqs } from '@/ai/flows/suggest-new-faqs';
 import type { Suggestion } from '@/ai/flows/suggest-new-faqs';
@@ -59,6 +59,7 @@ function TestConciergeSandbox({ property, faqs }: { property: FirestoreProperty,
     const [inputValue, setInputValue] = useState('');
     const [isThinking, startThinking] = useTransition();
     const scrollAreaRef = React.useRef<HTMLDivElement>(null);
+    const { user } = useUser();
 
     useEffect(() => {
         if (scrollAreaRef.current) {
@@ -67,14 +68,16 @@ function TestConciergeSandbox({ property, faqs }: { property: FirestoreProperty,
     }, [messages]);
 
     const askQuestion = (question: string) => {
+        if (!user) return;
         const userMessage: TestMessage = { id: nanoid(), role: 'user', content: question };
         setMessages(prev => [...prev, userMessage]);
 
         startThinking(async () => {
             try {
                 const result = await getAIAnswer({
-                    property: property as any, // Cast because the test component uses FirestoreProperty
+                    propertyId: property.id,
                     question: question,
+                    userId: user.uid,
                 });
                 const assistantMessage: TestMessage = { id: nanoid(), role: 'assistant', content: result.answer };
                 setMessages(prev => [...prev, assistantMessage]);
@@ -419,13 +422,17 @@ export default function ManageFaqsPage() {
 
   const handleGenerateAnswer = () => {
     const question = form.getValues('question');
-    if (!question || !property) {
+    if (!question || !property || !user) {
         toast({ variant: 'destructive', title: "Question needed", description: "Please type a question before generating an answer." });
         return;
     }
     startAnswerGeneration(async () => {
         try {
-            const result = await getAIAnswer({ property: property as any, question });
+            const result = await getAIAnswer({ 
+                propertyId: property.id, 
+                question,
+                userId: user.uid,
+            });
             form.setValue('answer', result.answer, { shouldValidate: true });
             toast({ title: "Answer Generated!", description: "The AI has drafted an answer for you." });
         } catch (error) {
@@ -448,7 +455,7 @@ export default function ManageFaqsPage() {
             toast({ title: 'FAQ Updated!' });
         } else {
             const newFaqId = nanoid();
-            const newFaq = { ...values, id: newFaqId };
+            const newFaq = { ...values, id: newFaqId, usageCount: 0 };
             const docRef = doc(collectionRef, newFaq.id);
             await setDoc(docRef, newFaq);
             toast({ title: 'FAQ Added!' });
@@ -503,12 +510,12 @@ export default function ManageFaqsPage() {
 
   const chartData = useMemo(() => {
     return validFaqs
-        .map(faq => ({ name: faq.question, usage: faqUsageData[faq.id] || 0 }))
+        .map(faq => ({ name: faq.question, usage: faq.usageCount || 0 }))
         .filter(item => item.usage > 0)
         .sort((a, b) => b.usage - a.usage)
         .slice(0, 5)
         .map(item => ({...item, name: item.name.substring(0, 20) + (item.name.length > 20 ? '...' : '') }));
-  }, [validFaqs, faqUsageData]);
+  }, [validFaqs]);
 
   const chartConfig = {
     usage: {
@@ -584,7 +591,7 @@ export default function ManageFaqsPage() {
                     </CardContent>
                 </Card>
 
-                {property && validFaqs && <TestConciergeSandbox property={property} faqs={validFaqs} />}
+                {property && validFaqs && user && <TestConciergeSandbox property={property} faqs={validFaqs} />}
             </div>
             
             <div className="space-y-8">
@@ -652,7 +659,7 @@ export default function ManageFaqsPage() {
                                         <CardHeader className="p-4">
                                             <div className="flex justify-between items-start gap-2">
                                                 <p className="font-medium flex-1">{faq.question}</p>
-                                                {hasAnalyticsAccess && <Badge variant="secondary">Used {faqUsageData[faq.id] || 0} times</Badge>}
+                                                {hasAnalyticsAccess && <Badge variant="secondary">Used {faq.usageCount || 0} times</Badge>}
                                             </div>
                                         </CardHeader>
                                         <CardContent className="p-4 pt-0">

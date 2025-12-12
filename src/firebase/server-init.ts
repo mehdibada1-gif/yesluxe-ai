@@ -1,35 +1,32 @@
-// This file is for initializing Firebase services on the server.
-// It's a singleton pattern to avoid re-initialization.
 
+// This file is for initializing the Firebase CLIENT SDK on the server.
+// It's a singleton pattern to avoid re-initialization.
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import { getAuth, type Auth } from 'firebase/auth';
 import { firebaseConfig } from './config';
 
-type FirebaseServices = {
+// This type is now simplified to only include Firestore from the CLIENT SDK
+type FirebaseServerServices = {
   app: FirebaseApp;
-  auth: Auth;
   firestore: Firestore;
 };
 
-let firebase: FirebaseServices | null = null;
+let firebaseServerPromise: Promise<FirebaseServerServices> | null = null;
 
-// This function initializes and returns the Firebase services.
-// It's designed to be called from server-side code (e.g., RSC, Server Actions).
-export function getFirebase(): FirebaseServices {
-  if (firebase) {
-    return firebase;
-  }
-
-  if (getApps().length === 0) {
-    initializeApp(firebaseConfig);
-  }
-  
-  const app = getApp();
-  const auth = getAuth(app);
+async function initializeServerServices(): Promise<FirebaseServerServices> {
+  // Use the standard client `initializeApp`
+  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   const firestore = getFirestore(app);
 
-  firebase = { app, auth, firestore };
+  return { app, firestore };
+}
 
-  return firebase;
+/**
+ * Initializes and returns the Firebase Client SDK services for server-side use.
+ */
+export function getFirebase(): Promise<FirebaseServerServices> {
+  if (!firebaseServerPromise) {
+    firebaseServerPromise = initializeServerServices();
+  }
+  return firebaseServerPromise;
 }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import Image from 'next/image';
@@ -20,7 +21,7 @@ export default function MediaGallery({ media }: MediaGalleryProps) {
     <Card className="overflow-hidden">
       <Carousel className="w-full">
         <CarouselContent>
-          {media.map(image => (
+          {media.map((image, index) => (
             <CarouselItem key={image.id}>
               <div className="aspect-video relative">
                 <Image
@@ -30,7 +31,7 @@ export default function MediaGallery({ media }: MediaGalleryProps) {
                   className="object-cover"
                   data-ai-hint={image.imageHint}
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  priority={media.indexOf(image) === 0}
+                  priority={index === 0}
                 />
               </div>
             </CarouselItem>

@@ -11,106 +11,84 @@ service cloud.firestore {
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
-
-    // 🔑 CRITICAL FIX: Use Database Check (must be active for privileges to work)
-    function isSuperAdmin() {
-      // Checks if the user's UID exists as a document in the 'superAdmins' collection.
-      return request.auth != null && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
-    }
     
-    // --- SuperAdmins Collection (STABLE FIX: Breaks the circular list dependency) ---
-    match /superAdmins/{userId} {
-        // 1. Client Read (get): Allows the user to read their own document to get their role.
-        allow get: if isOwner(userId);
-        
-        // 2. Client Query (list): Allow a confirmed SuperAdmin to list the collection.
-        // This prevents the circular dependency while allowing admins to see each other.
-        allow list: if isSuperAdmin();
-
-        // 3. Prevent write access.
-        allow write: if false;
+    function canManageProperty(propertyId) {
+        // Safely access data property only if the document exists
+        let propertyDoc = get(/databases/$(database)/documents/properties/$(propertyId));
+        return propertyDoc.exists && isOwner(propertyDoc.data.ownerId);
     }
 
-    // --- Property Matches ---
+    // --- Properties Collection ---
     match /properties/{propertyId} {
-      allow read: if true; 
-      
-      // Owners can write to their own properties. SuperAdmins can write to any.
-      allow write: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin() || (request.method == 'create' && isOwner(request.resource.data.ownerId)));
+      // Allow public read for visitor pages, which use the client SDK on the server
+      allow read: if true;
+      allow write: if canManageProperty(propertyId) || (request.method == 'create' && isOwner(request.resource.data.ownerId));
 
       // --- Subcollections ---
       match /reviews/{reviewId} {
-        allow read, create: if true;
-        // Owners or SuperAdmins can moderate reviews.
-        allow update, delete: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin());
+        // Allow public read for visitor pages
+        allow read: if true;
+        allow create: if true;
+        allow update, delete: if canManageProperty(propertyId);
       }
 
       match /faqs/{faqId} {
+        // Allow public read for visitor pages
         allow read: if true;
-        // Owners or SuperAdmins can manage FAQs.
-        allow write: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin());
+        allow write: if canManageProperty(propertyId);
       }
       
       match /recommendations/{recommendationId} {
+        // Allow public read for visitor pages
         allow read: if true;
-        // Owners or SuperAdmins can manage recommendations.
-        allow write: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin());
+        allow write: if canManageProperty(propertyId);
       }
 
       match /bookingInquiries/{inquiryId} {
         allow create: if isSignedIn();
-        // Owners or SuperAdmins can manage booking inquiries.
-        allow read, update: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId) || isSuperAdmin());
+        allow read, update: if canManageProperty(propertyId);
       }
 
-      // --- ChatLogs Subcollection: FINAL STABLE STRUCTURE ---
+      // --- ChatLogs Subcollection ---
       match /chatLogs/{clientId} {
-        
-        // Define helper functions (keep them for management read/list checks)
-        function propertyOwnerId() {
-            return get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId;
-        }
-        
-        function canManageChat() {
-            // Includes the exists() guardrail for stability
-            return exists(/databases/$(database)/documents/properties/$(propertyId)) && (
-                isOwner(propertyOwnerId()) || 
-                isSuperAdmin()
-            );
-        }
-        
-        // 1. DENY ALL DIRECT WRITES: All writes (create/update) must go through the Cloud Function.
-        allow write: if false; 
-        
-        // 2. READ ACCESS: Visitor can read their own log (for real-time updates). Management can read/list all.
-        allow read, list: if isOwner(clientId) || canManageChat();
+        // CREATE: Denied. Must be handled by a trusted server process (Server Action).
+        allow create: if false; 
+
+        // UPDATE: Allow the client who owns this log to add messages.
+        allow update: if isOwner(clientId);
+
+        // READ / LIST: Allow the client owner or a property manager to view.
+        allow read, list: if isOwner(clientId) || canManageProperty(propertyId);
+
+        // DELETE: Denied from client.
+        allow delete: if false;
       }
     }
 
     // --- Top-Level Collections ---
     match /owners/{ownerId} {
-      allow read: if true;
+      // Allow public read for profile pages
+      allow read: if true; 
       allow create: if isSignedIn() && isOwner(ownerId);
-      // An owner can update their own profile, or a SuperAdmin can update any profile.
-      allow update: if isSignedIn() && (isOwner(ownerId) || isSuperAdmin());
+      allow update: if isSignedIn() && isOwner(ownerId);
 
       match /inquiries/{inquiryId} {
-          allow create: if isSignedIn() && isOwner(ownerId);
-          // Only SuperAdmins can manage sales inquiries.
-          allow read, update, delete: if isSuperAdmin();
+          // This subcollection is for sales/premium inquiries.
+          // Allow owner to create, but only superadmins can manage.
+          allow create: if isOwner(ownerId);
+          allow read, update, delete: if false; // Reverted superadmin logic for now
       }
     }
 
     match /clients/{clientId} {
-      // 🔑 FIX: Allow the current user (including anonymous) to CREATE the document 
-      // with their own UID, and READ it. This is secure because of the isOwner check.
-      allow read, create: if isOwner(clientId);
+      // Clients can read their own document.
+      allow read: if isOwner(clientId);
       
-      // Also keep the management access for reading client data:
-      allow read: if isSuperAdmin() || (resource.data.ownerId != null && isOwner(resource.data.ownerId));
-
-      // Deny updates/deletes from the client side.
-      allow update, delete: if false;
+      // **CRITICAL FIX**: Allow the Visitor to create/update their own document,
+      // which is required by the server action to register them on first interaction.
+      allow create, update: if isSignedIn() && isOwner(clientId);
+      
+      allow delete: if false;
     }
   }
 }

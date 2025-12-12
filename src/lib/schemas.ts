@@ -73,12 +73,12 @@ export const reviewFormSchema = z.object({
     }).optional(),
     visitorCity: z.string().min(2, "Please enter your city.").optional().or(z.literal('')),
     visitorCountry: z.string().min(2, "Please enter your country.").optional().or(z.literal('')),
-    ratingCleanliness: z.number().min(1, "Please rate cleanliness.").max(5),
-    ratingAccuracy: z.number().min(1, "Please rate accuracy.").max(5),
-    ratingCheckIn: z.number().min(1, "Please rate check-in.").max(5),
-    ratingCommunication: z.number().min(1, "Please rate communication.").max(5),
-    ratingLocation: z.number().min(1, "Please rate location.").max(5),
-    ratingValue: z.number().min(1, "Please rate value.").max(5),
+    ratingCleanliness: z.number().min(1, "Please rate cleanliness.").max(5, "Rating must be 5 or less."),
+    ratingAccuracy: z.number().min(1, "Please rate accuracy.").max(5, "Rating must be 5 or less."),
+    ratingCheckIn: z.number().min(1, "Please rate check-in.").max(5, "Rating must be 5 or less."),
+    ratingCommunication: z.number().min(1, "Please rate communication.").max(5, "Rating must be 5 or less."),
+    ratingLocation: z.number().min(1, "Please rate location.").max(5, "Rating must be 5 or less."),
+    ratingValue: z.number().min(1, "Please rate value.").max(5, "Rating must be 5 or less."),
     guestTip: z.string().max(300, "Guest tip cannot exceed 300 characters.").optional(),
 });
 

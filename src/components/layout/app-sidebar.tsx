@@ -66,13 +66,6 @@ export default function AppSidebar() {
   );
   const { data: owner } = useDoc<Owner>(ownerRef);
 
-  const superAdminRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
-    [firestore, user]
-  );
-  const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
-
   const handleLogout = async () => {
     if (auth) {
       await signOut(auth);
@@ -80,23 +73,12 @@ export default function AppSidebar() {
     }
   };
 
-  const ownerNavItems = [
+  const navItems = [
     { href: "/dashboard/owner", tooltip: "Dashboard", icon: LayoutDashboard, label: "Dashboard", activeCondition: (path: string) => path === '/dashboard/owner' },
     { href: "/dashboard/properties", tooltip: "Properties", icon: Building, label: "My Properties", activeCondition: (path: string) => path.startsWith('/dashboard/properties') || path.startsWith('/dashboard/property') },
     { href: "/dashboard/analytics", tooltip: "Analytics", icon: BarChart2, label: "Analytics", activeCondition: (path: string) => path.startsWith('/dashboard/analytics') },
     { href: "/dashboard/billing", tooltip: "Billing", icon: CreditCard, label: "Billing", activeCondition: (path: string) => path.startsWith('/dashboard/billing') },
   ];
-
-  const adminNavItems = [
-      { href: "/dashboard/admin", tooltip: "Admin Dashboard", icon: LayoutDashboard, label: "Admin Dashboard", activeCondition: (path: string) => path === '/dashboard/admin' },
-      { href: "/dashboard/admin/owners", tooltip: "Owners", icon: Users, label: "All Owners", activeCondition: (path: string) => path.startsWith('/dashboard/admin/owners') },
-      { href: "/dashboard/admin/properties", tooltip: "All Properties", icon: Building, label: "All Properties", activeCondition: (path: string) => path.startsWith('/dashboard/admin/properties') },
-      { href: "/dashboard/admin/sales", tooltip: "Sales", icon: Send, label: "Sales Inquiries", activeCondition: (path: string) => path.startsWith('/dashboard/admin/sales') },
-      { href: "/dashboard/admin/moderation", tooltip: "Moderation", icon: ShieldAlert, label: "Moderation", activeCondition: (path: string) => path.startsWith('/dashboard/admin/moderation') },
-      { href: "/dashboard/admin/data-audit", tooltip: "Data Audit", icon: Database, label: "Data Audit", activeCondition: (path: string) => path.startsWith('/dashboard/admin/data-audit') },
-  ];
-
-  const navItems = isSuperAdmin ? adminNavItems : ownerNavItems;
 
   return (
     <Sidebar>
@@ -109,7 +91,7 @@ export default function AppSidebar() {
             <h2 className="font-headline text-lg font-semibold">
               Yes-Luxe
             </h2>
-            <p className="text-xs text-muted-foreground">{isSuperAdmin ? 'Super Admin' : 'Owner Panel'}</p>
+            <p className="text-xs text-muted-foreground">Owner Panel</p>
           </div>
         </div>
       </SidebarHeader>
@@ -142,7 +124,7 @@ export default function AppSidebar() {
                                 <span className="text-sm font-medium leading-tight">{owner.name || user.email}</span>
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-xs text-muted-foreground">
-                                      {isSuperAdmin ? 'Super Admin' : 'Owner'}
+                                      Owner
                                     </span>
                                     <Badge variant={owner.subscriptionTier === 'premium' ? 'default' : 'secondary'} className="capitalize py-0 px-1.5 text-[10px] font-light">
                                         {owner.subscriptionTier === 'premium' && <Star className="h-2.5 w-2.5 mr-1" />}

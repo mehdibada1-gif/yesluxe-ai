@@ -1,9 +1,8 @@
 
 'use client';
 
-import { useMemo } from 'react';
 import Link from 'next/link';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser, useDoc } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PlusCircle, Building, MapPin, Lock, Copy } from 'lucide-react';
 import { FirestoreProperty, Owner } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
@@ -50,20 +49,11 @@ export default function PropertiesPage() {
   }, [user, isUserLoading, router]);
   
   const ownerRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'owners', user.uid) : null),
+    () => (firestore && user ? firestore.collection('owners').doc(user.uid) : null),
     [firestore, user]
   );
   const { data: owner, isLoading: isOwnerLoading } = useDoc<Owner>(ownerRef);
 
-    // Securely check if the current user is a SuperAdmin.
-    const superAdminRef = useMemoFirebase(
-        () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
-        [firestore, user]
-    );
-    const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-    const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
-
-  // This query is now simplified: it ONLY fetches properties for the current owner.
   const propertiesQuery = useMemoFirebase(
     () => {
       if (!firestore || !user) return null;
@@ -76,7 +66,6 @@ export default function PropertiesPage() {
     useCollection<FirestoreProperty>(propertiesQuery);
     
   const canCreateProperty = useMemo(() => {
-    if (isSuperAdmin) return true;
     if (!owner || !properties) return false;
     
     const propertyCount = properties.length;
@@ -90,9 +79,9 @@ export default function PropertiesPage() {
         default:
             return false;
     }
-  }, [owner, properties, isSuperAdmin]);
+  }, [owner, properties]);
   
-  const isLoading = isUserLoading || arePropertiesLoading || isOwnerLoading || isSuperAdminLoading;
+  const isLoading = isUserLoading || arePropertiesLoading || isOwnerLoading;
   
   const handleCopyId = (propertyId: string) => {
     if (navigator.clipboard && window.isSecureContext) {

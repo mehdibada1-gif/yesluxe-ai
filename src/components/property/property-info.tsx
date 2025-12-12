@@ -44,12 +44,6 @@ type PropertyInfoProps = {
   property: Property;
 };
 
-const WhatsAppIcon = () => (
-    <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 fill-current">
-        <path d="M17.472 14.382c-.297-.149-.88-.436-1.017-.487-.137-.05-.274-.074-.412.075-.137.149-.512.65-.627.785-.114.136-.23.15-.412.074-.182-.074-.767-.28-1.46-.906-.54-.486-.906-1.08-.99-1.254-.085-.174-.007-.26.067-.35.065-.08.149-.2.223-.274.074-.074.12-.12.18-.2.06-.08.03-.15-.015-.274-.045-.12-.41-.99-.56-1.355-.149-.364-.3-.31-.41-.31-.112 0-.274-.007-.41-.007-.137 0-.36.05-.546.274-.186.225-.7.695-.7 1.695s.725 1.97.82 2.12c.094.15.14.274.14.274.149.56 1.46 2.37 3.53 3.12.59.21.99.28 1.36.28.66 0 1.25-.28 1.44-.88.19-.6.19-1.1.13-1.25s-.18-.2-.36-.31zM12 2.04c-5.5 0-9.96 4.46-9.96 9.96 0 1.78.46 3.45 1.28 4.9L2.04 22l5.12-1.34c1.4.74 3 .12 4.72.12h.01c5.5 0 9.96-4.46 9.96-9.96s-4.46-9.96-9.96-9.96zM12 20.14c-1.6 0-3.13-.4-4.43-1.12l-.3-.18-3.3.86.88-3.2-.2-.32c-.8-1.34-1.28-2.9-1.28-4.54 0-4.5 3.63-8.14 8.14-8.14 2.25 0 4.35.88 5.9 2.42s2.4 3.65 2.4 5.9-1.08 4.35-2.42 5.9c-1.55 1.54-3.65 2.42-5.9 2.42z"/>
-    </svg>
-)
-
 const RatingCategoryInput = ({ field, label }: { field: any, label: string }) => (
     <FormItem>
         <FormLabel>{label}</FormLabel>
@@ -262,7 +256,7 @@ function ReviewForm({ property }: { property: Property }) {
     };
 
     return (
-        <Card className="bg-muted/30">
+        <Card className="bg-card/80">
             <CardHeader>
                 <CardTitle>Leave a Review</CardTitle>
                 <CardDescription>Share your experience with future visitors.</CardDescription>
@@ -366,23 +360,17 @@ export default function PropertyInfo({ property }: PropertyInfoProps) {
   const [isBookDialogOpen, setBookDialogOpen] = useState(false);
   const [selectedRec, setSelectedRec] = useState<Recommendation | null>(null);
 
-  const amenitiesList = useMemo(() => Array.isArray(property.amenities) ? property.amenities : property.amenities?.split(',').map(a => a.trim()) || [], [property.amenities]);
-  const rulesList = useMemo(() => Array.isArray(property.rules) ? property.rules : property.rules?.split('.').map(r => r.trim()).filter(r => r.length > 0) || [], [property.rules]);
+  const amenitiesList = useMemo(() => {
+    if (!property.amenities) return [];
+    if (Array.isArray(property.amenities)) return property.amenities;
+    return property.amenities.split(',').map(a => a.trim());
+  }, [property.amenities]);
 
-  const handleWhatsAppClick = () => {
-    const phone = property.owner?.phoneNumber;
-    if (phone) {
-       const cleanPhone = phone.replace(/[\s+()-]/g, '');
-       window.open(`https://wa.me/${cleanPhone}`, '_blank');
-    }
-  }
-  
-  const handleEmailClick = () => {
-      const email = property.owner?.email;
-      if (email) {
-          window.location.href = `mailto:${email}`;
-      }
-  }
+  const rulesList = useMemo(() => {
+    if (!property.rules) return [];
+    if (Array.isArray(property.rules)) return property.rules;
+    return property.rules.split('.').map(r => r.trim()).filter(r => r.length > 0);
+  }, [property.rules]);
 
   const allReviews = useMemo(() => {
     return [...(property.reviews || [])]
@@ -395,172 +383,178 @@ export default function PropertyInfo({ property }: PropertyInfoProps) {
   const visibleReviews = useMemo(() => allReviews.slice(0, reviewsToShow), [allReviews, reviewsToShow]);
   
   const hasReviews = allReviews && allReviews.length > 0;
+  const hasOwnerInfo = property.owner && (property.owner.description || property.owner.phoneNumber || property.owner.email);
+
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-headline text-2xl tracking-tight">About the Property</CardTitle>
-        <p className="text-muted-foreground pt-1">{property.description}</p>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 h-auto">
-            <TabsTrigger value="general" className="py-2 gap-2"><List className="h-4 w-4"/>General Info</TabsTrigger>
-            <TabsTrigger value="faq" className="py-2 gap-2"><HelpCircle className="h-4 w-4"/>FAQ</TabsTrigger>
-            <TabsTrigger value="recommendations" className="py-2 gap-2"><Sparkles className="h-4 w-4"/>Recommendations</TabsTrigger>
-            <TabsTrigger value="contact" className="py-2 gap-2"><Phone className="h-4 w-4"/>Contact</TabsTrigger>
-          </TabsList>
-          <TabsContent value="general" className="mt-6 space-y-8">
-             <div>
-                <h3 className="text-lg font-semibold mb-4">What this place offers</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                {amenitiesList.map(amenity => {
-                    let Icon = CheckCircle2;
-                    if (amenity.toLowerCase().includes('wifi')) Icon = Wifi;
-                    if (amenity.toLowerCase().includes('bed')) Icon = Building;
-                    if (amenity.toLowerCase().includes('bath')) Icon = Bath;
-                    if (amenity.toLowerCase().includes('kitchen')) Icon = UtensilsCrossed;
-                    if (amenity.toLowerCase().includes('parking')) Icon = ParkingCircle;
-                    if (amenity.toLowerCase().includes('air conditioning')) Icon = Wind;
-                    if (amenity.toLowerCase().includes('tv')) Icon = Tv;
-
-                    return (
-                    <div key={amenity} className="flex items-center gap-3">
-                        <Icon className="h-6 w-6 text-primary" strokeWidth={1.5}/>
-                        <span className="text-sm font-medium text-foreground">{amenity}</span>
-                    </div>
-                    );
-                })}
-                </div>
-             </div>
-             <div>
-                <h3 className="text-lg font-semibold mb-4">Things to know</h3>
-                <ul className="space-y-3">
-                {rulesList.map((rule, index) => (
-                    <li key={index} className="flex items-start gap-3">
-                    <ClipboardList className="h-5 w-5 text-primary/80 mt-0.5 shrink-0" />
-                    <span className="text-sm text-muted-foreground">{rule}</span>
-                    </li>
-                ))}
-                </ul>
-             </div>
-          </TabsContent>
-           <TabsContent value="faq" className="mt-6">
-             <h3 className="text-lg font-semibold mb-4">Frequently Asked Questions</h3>
-              {property.faqs && property.faqs.length > 0 ? (
-                <Accordion type="single" collapsible className="w-full">
-                  {property.faqs.map((faq) => (
-                    <AccordionItem value={faq.id} key={faq.id}>
-                      <AccordionTrigger className="hover:no-underline text-left">
-                        <span className="font-medium flex-1">{faq.question}</span>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <p className="text-muted-foreground">{faq.answer}</p>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              ) : (
-                <div className="text-center text-muted-foreground border-2 border-dashed rounded-lg p-8">
-                    <HelpCircle className="mx-auto h-8 w-8 text-muted-foreground mb-2"/>
-                    <p>No FAQs have been added for this property yet.</p>
-                </div>
-              )}
-          </TabsContent>
-          <TabsContent value="recommendations" className="mt-6">
-             <h3 className="text-lg font-semibold mb-4">Owner's Recommendations</h3>
-              {property.recommendations && property.recommendations.length > 0 ? (
-                <div className="space-y-4">
-                  <Dialog open={isBookDialogOpen} onOpenChange={setBookDialogOpen}>
-                  {property.recommendations.map((rec) => (
-                    <Card key={rec.id} className="bg-secondary/50 flex flex-col sm:flex-row overflow-hidden">
-                        {rec.imageUrl && (
-                            <div className="sm:w-1/3 aspect-video sm:aspect-auto relative">
-                                <Image src={rec.imageUrl} alt={rec.title} fill className="object-cover"/>
-                            </div>
-                        )}
-                        <div className="flex-1">
-                            <CardHeader>
-                                <Badge variant="outline" className="w-fit mb-2">{rec.category}</Badge>
-                                <CardTitle className="text-lg">{rec.title}</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-muted-foreground text-sm">{rec.description}</p>
-                            </CardContent>
-                           <CardFooter className="flex-wrap gap-2">
-                                {rec.link && (
-                                    <a href={rec.link} target="_blank" rel="noopener noreferrer">
-                                        <Button variant="outline" size="sm">
-                                            <LinkIcon className="mr-2 h-4 w-4" />
-                                            Learn More
-                                        </Button>
-                                    </a>
-                                )}
-                                <DialogTrigger asChild>
-                                  <Button size="sm" onClick={() => setSelectedRec(rec)}>
-                                      <Send className="mr-2 h-4 w-4"/>
-                                      Request to Book
-                                  </Button>
-                                </DialogTrigger>
-                            </CardFooter>
-                        </div>
-                    </Card>
-                  ))}
-                  <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Book: {selectedRec?.title}</DialogTitle>
-                        <DialogDescription>
-                            Send an inquiry to the property owner to book this experience. They will contact you to confirm details.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {selectedRec && <BookingInquiryForm property={property} recommendation={selectedRec} onFinished={() => setBookDialogOpen(false)} />}
-                  </DialogContent>
-                  </Dialog>
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground border-2 border-dashed rounded-lg p-8">
-                    <Sparkles className="mx-auto h-8 w-8 text-muted-foreground mb-2"/>
-                    <p>The owner hasn't added any personal recommendations yet.</p>
-                </div>
-              )}
-          </TabsContent>
-          <TabsContent value="contact" className="mt-6">
-             <h3 className="text-lg font-semibold mb-4">Your Host</h3>
-            <Card className="bg-gradient-to-br from-secondary/30 to-background border">
-                <CardContent className="p-6 flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
-                    <Avatar className="h-20 w-20 border-2 border-primary/50">
-                        <AvatarImage src={property.owner?.photoURL || ''} alt="Property Owner" />
-                        <AvatarFallback>{property.owner?.name?.charAt(0) || 'O'}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                        <h4 className="font-semibold text-xl">{property.owner?.name || 'Your Host'}</h4>
-                        <p className="text-muted-foreground mt-1 text-sm">
-                            {property.owner?.description || 'Your host is here to ensure you have a great stay. Feel free to reach out with any questions!'}
-                        </p>
-                         <div className="mt-4 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 flex-wrap">
-                            {property.ownerId && (
-                                <Button asChild variant="outline" size="sm">
-                                    <Link href={`/owner/${property.ownerId}`}>
-                                        <UserIcon className="mr-2 h-4 w-4" />
-                                        View Host Profile
-                                    </Link>
-                                </Button>
-                            )}
-                            {property.owner?.phoneNumber && (
-                                <Button size="sm" onClick={handleWhatsAppClick} className="bg-[#25D366] hover:bg-[#25D366]/90 text-white">
-                                    <WhatsAppIcon />
-                                    Contact via WhatsApp
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-       <Separator className="my-4" />
+    <div className="space-y-8">
+      <Card>
         <CardHeader>
+          <CardTitle className="font-headline text-3xl tracking-tight">About the Property</CardTitle>
+          <p className="text-muted-foreground pt-1">{property.description}</p>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 h-auto">
+              <TabsTrigger value="general" className="py-2 gap-2"><List className="h-4 w-4"/>General Info</TabsTrigger>
+              <TabsTrigger value="faq" className="py-2 gap-2"><HelpCircle className="h-4 w-4"/>FAQ</TabsTrigger>
+              <TabsTrigger value="recommendations" className="py-2 gap-2"><Sparkles className="h-4 w-4"/>Recommendations</TabsTrigger>
+            </TabsList>
+            <TabsContent value="general" className="mt-6 space-y-8">
+               <div>
+                  <h3 className="text-lg font-semibold mb-4">What this place offers</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                  {amenitiesList.map(amenity => {
+                      let Icon = CheckCircle2;
+                      if (amenity.toLowerCase().includes('wifi')) Icon = Wifi;
+                      if (amenity.toLowerCase().includes('bed')) Icon = Building;
+                      if (amenity.toLowerCase().includes('bath')) Icon = Bath;
+                      if (amenity.toLowerCase().includes('kitchen')) Icon = UtensilsCrossed;
+                      if (amenity.toLowerCase().includes('parking')) Icon = ParkingCircle;
+                      if (amenity.toLowerCase().includes('air conditioning')) Icon = Wind;
+                      if (amenity.toLowerCase().includes('tv')) Icon = Tv;
+
+                      return (
+                      <div key={amenity} className="flex items-center gap-3">
+                          <Icon className="h-6 w-6 text-primary" strokeWidth={1.5}/>
+                          <span className="text-sm font-medium text-foreground">{amenity}</span>
+                      </div>
+                      );
+                  })}
+                  </div>
+               </div>
+               <div>
+                  <h3 className="text-lg font-semibold mb-4">Things to know</h3>
+                  <ul className="space-y-3">
+                  {rulesList.map((rule, index) => (
+                      <li key={index} className="flex items-start gap-3">
+                      <ClipboardList className="h-5 w-5 text-primary/80 mt-0.5 shrink-0" />
+                      <span className="text-sm text-muted-foreground">{rule}</span>
+                      </li>
+                  ))}
+                  </ul>
+               </div>
+            </TabsContent>
+             <TabsContent value="faq" className="mt-6">
+               <h3 className="text-lg font-semibold mb-4">Frequently Asked Questions</h3>
+                {property.faqs && property.faqs.length > 0 ? (
+                  <Accordion type="single" collapsible className="w-full">
+                    {property.faqs.map((faq) => (
+                      <AccordionItem value={faq.id} key={faq.id}>
+                        <AccordionTrigger className="hover:no-underline text-left">
+                          <span className="font-medium flex-1">{faq.question}</span>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <p className="text-muted-foreground">{faq.answer}</p>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                ) : (
+                  <div className="text-center text-muted-foreground border-2 border-dashed rounded-lg p-8">
+                      <HelpCircle className="mx-auto h-8 w-8 text-muted-foreground mb-2"/>
+                      <p>No FAQs have been added for this property yet.</p>
+                  </div>
+                )}
+            </TabsContent>
+            <TabsContent value="recommendations" className="mt-6">
+               <h3 className="text-lg font-semibold mb-4">Owner's Recommendations</h3>
+                {property.recommendations && property.recommendations.length > 0 ? (
+                  <div className="space-y-4">
+                    <Dialog open={isBookDialogOpen} onOpenChange={setBookDialogOpen}>
+                    {property.recommendations.map((rec) => (
+                      <Card key={rec.id} className="bg-secondary/50 flex flex-col sm:flex-row overflow-hidden">
+                          {rec.imageUrl && (
+                              <div className="sm:w-1/3 aspect-video sm:aspect-auto relative">
+                                  <Image src={rec.imageUrl} alt={rec.title} fill className="object-cover"/>
+                              </div>
+                          )}
+                          <div className="flex-1">
+                              <CardHeader>
+                                  <Badge variant="outline" className="w-fit mb-2">{rec.category}</Badge>
+                                  <CardTitle className="text-lg">{rec.title}</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                  <p className="text-muted-foreground text-sm">{rec.description}</p>
+                              </CardContent>
+                             <CardFooter className="flex-wrap gap-2">
+                                  {rec.link && (
+                                      <a href={rec.link} target="_blank" rel="noopener noreferrer">
+                                          <Button variant="outline" size="sm">
+                                              <LinkIcon className="mr-2 h-4 w-4" />
+                                              Learn More
+                                          </Button>
+                                      </a>
+                                  )}
+                                  <DialogTrigger asChild>
+                                    <Button size="sm" onClick={() => setSelectedRec(rec)}>
+                                        <Send className="mr-2 h-4 w-4"/>
+                                        Request to Book
+                                    </Button>
+                                  </DialogTrigger>
+                              </CardFooter>
+                          </div>
+                      </Card>
+                    ))}
+                    <DialogContent>
+                      <DialogHeader>
+                          <DialogTitle>Book: {selectedRec?.title}</DialogTitle>
+                          <DialogDescription>
+                              Send an inquiry to the property owner to book this experience. They will contact you to confirm details.
+                          </DialogDescription>
+                      </DialogHeader>
+                      {selectedRec && <BookingInquiryForm property={property} recommendation={selectedRec} onFinished={() => setBookDialogOpen(false)} />}
+                    </DialogContent>
+                    </Dialog>
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground border-2 border-dashed rounded-lg p-8">
+                      <Sparkles className="mx-auto h-8 w-8 text-muted-foreground mb-2"/>
+                      <p>The owner hasn't added any personal recommendations yet.</p>
+                  </div>
+                )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+      
+      {hasOwnerInfo && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline text-3xl tracking-tight">Meet Your Host</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row items-start gap-6">
+            <Avatar className="h-24 w-24 border">
+              <AvatarImage src={property.owner!.photoURL} alt={property.owner!.name} />
+              <AvatarFallback className="text-3xl">
+                {property.owner!.name?.charAt(0) || 'H'}
+              </AvatarFallback>
+            </Avatar>
+            <div className="space-y-4 flex-1">
+              <h3 className="text-xl font-semibold">{property.owner!.name}</h3>
+              <p className="text-muted-foreground">{property.owner!.description}</p>
+              <div className="flex flex-wrap gap-4 text-sm">
+                {property.owner!.phoneNumber && (
+                  <a href={`https://wa.me/${property.owner!.phoneNumber.replace(/[\s+()-]/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-primary transition-colors">
+                    <Phone className="h-4 w-4" /> Contact
+                  </a>
+                )}
+                {property.owner!.email && (
+                  <a href={`mailto:${property.owner!.email}`} className="flex items-center gap-2 hover:text-primary transition-colors">
+                    <Mail className="h-4 w-4" /> Email
+                  </a>
+                )}
+                {property.owner!.facebookUrl && <a href={property.owner!.facebookUrl} target="_blank" rel="noopener noreferrer"><Facebook className="h-5 w-5 text-muted-foreground hover:text-primary"/></a>}
+                {property.owner!.instagramUrl && <a href={property.owner!.instagramUrl} target="_blank" rel="noopener noreferrer"><Instagram className="h-5 w-5 text-muted-foreground hover:text-primary"/></a>}
+                {property.owner!.linkedinUrl && <a href={property.owner!.linkedinUrl} target="_blank" rel="noopener noreferrer"><Linkedin className="h-5 w-5 text-muted-foreground hover:text-primary"/></a>}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+         <CardHeader>
             {hasReviews && property.reviewCount && property.averageRating ? (
                 <div className="flex items-center gap-2">
                     <Star className="h-6 w-6 text-primary fill-primary" />
@@ -645,6 +639,7 @@ export default function PropertyInfo({ property }: PropertyInfoProps) {
             <ReviewForm property={property} />
 
         </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
 }

@@ -1,105 +1,134 @@
 
 'use server';
 
-import { ai } from '@/ai/genkit';
+import { answerVisitorQuestion } from '@/ai/flows/answer-visitor-question';
 import { getFirebase } from '@/firebase/server-init';
-import { googleAI } from '@genkit-ai/google-genai';
-import { Document, nearestNeighbor } from 'genkit';
-import type { Property } from '@/lib/types';
 import {
-  Query,
-  collection,
-  query,
-  where,
-  getDocs,
-  limit,
+  doc,
+  runTransaction,
+  arrayUnion,
+  serverTimestamp,
 } from 'firebase/firestore';
+import { nanoid } from 'nanoid';
 
-// The input now requires the entire property object.
 type GetAIAnswerInput = {
-  property: Property;
+  propertyId: string;
   question: string;
+  userId: string;
 };
-
-// Define the embedding model. This must match the one used for indexing.
-const embedder = googleAI.embedder('text-embedding-004');
 
 /**
  * This server action provides an AI-driven answer based on property details.
- * It uses a RAG (Retrieval-Augmented Generation) pattern.
- *
- * 1.  Embed the user's question into a vector.
- * 2.  Use Firestore Vector Search to find the most relevant text chunks.
- * 3.  Inject these chunks as context into a prompt for the Gemini model.
- * 4.  Return the generated answer.
+ * It calls the single, robust Genkit flow responsible for the RAG pattern
+ * and handles all message logging.
  */
 export async function getAIAnswer(
   input: GetAIAnswerInput
-): Promise<{ answer: string; usedFaqIds: string[] }> {
+): Promise<{ answer: string }> {
   'use server';
 
-  const { property, question } = input;
-  const { firestore } = getFirebase();
+  const { propertyId, question, userId } = input;
+  let aiAnswer: string;
 
-  // 1. Embed the user's question
-  const questionEmbedding = await ai.embed({
-    embedder,
-    content: question,
-  });
-
-  // 2. Perform vector search on the /propertyVectors collection
-  const vectorStoreRef = collection(firestore, 'propertyVectors');
-
-  // Build the query to first filter by propertyId and then find the nearest neighbors.
-  const vectorQuery: Query = query(
-    vectorStoreRef,
-    where('propertyId', '==', property.id),
-    nearestNeighbor('embedding', questionEmbedding, {
-      limit: 5,
-      distanceMeasure: 'COSINE',
-    })
-  );
-  
-  const searchResults = await getDocs(vectorQuery);
-  
-  const contextChunks: string[] = [];
-  if (!searchResults.empty) {
-      searchResults.docs.forEach(doc => {
-          contextChunks.push(doc.data().chunk);
-      });
+  try {
+    const { answer } = await answerVisitorQuestion({
+      propertyId: propertyId,
+      question,
+    });
+    aiAnswer = answer || "I'm sorry, I was unable to process that request.";
+  } catch (error) {
+    console.error('Error getting AI answer, logging user message anyway.', error);
+    aiAnswer =
+      "I'm sorry, an error occurred while processing your request. The property owner has been notified.";
+    // Still log the user's question even if the AI fails
+    await logMessages(propertyId, userId, question, aiAnswer, false);
+    // Re-throw to inform the client
+    throw error;
   }
-  
-  const context = contextChunks.join('\n---\n');
 
-  // 3. Augment the prompt with the retrieved context
-  const prompt = `
-    You are a helpful and friendly property assistant chatbot. Your goal is to answer visitor questions accurately based ONLY on the information provided in the "CONTEXT" section.
-
-    **CRITICAL INSTRUCTIONS:**
-    1.  Base your entire answer on the provided "CONTEXT" section.
-    2.  Do NOT use any information outside of the "CONTEXT".
-    3.  If the answer to the user's question is not found in the "CONTEXT", you MUST respond with: "I'm sorry, I don't have information about that. Please contact the property owner for more details."
-    4.  Keep your answers concise and to the point.
-
-    ---
-    CONTEXT:
-    ${context || 'No information available.'}
-    ---
-
-    USER'S QUESTION:
-    ${question}
-
-    Now, provide a helpful answer based on these instructions.
-  `;
-
-  // 4. Generate the final answer using the augmented prompt
-  const { text } = await ai.generate({
-    prompt: prompt,
-    model: 'googleai/gemini-2.5-flash',
-  });
+  // Log both the question and the successful answer.
+  await logMessages(propertyId, userId, question, aiAnswer, true);
 
   return {
-    answer: text || "I'm sorry, I was unable to process that request.",
-    usedFaqIds: [], // This is no longer applicable in the RAG model.
+    answer: aiAnswer,
   };
+}
+
+/**
+ * Logs the user question and assistant answer to Firestore within a transaction.
+ */
+async function logMessages(
+  propertyId: string,
+  userId: string,
+  question: string,
+  answer: string,
+  incrementUsage: boolean
+) {
+  const { firestore } = await getFirebase();
+  const propertyRef = doc(firestore, 'properties', propertyId);
+  const clientRef = doc(firestore, 'clients', userId);
+  const chatLogRef = doc(propertyRef, 'chatLogs', userId);
+
+  const userMessage = {
+    id: nanoid(),
+    role: 'user' as const,
+    content: question,
+    createdAt: serverTimestamp(),
+  };
+
+  const assistantMessage = {
+    id: nanoid(),
+    role: 'assistant' as const,
+    content: answer,
+    createdAt: serverTimestamp(),
+  };
+
+  try {
+    await runTransaction(firestore, async (transaction) => {
+      const propertyDoc = await transaction.get(propertyRef);
+      if (!propertyDoc.exists()) {
+        throw new Error(`Property with ID ${propertyId} does not exist.`);
+      }
+
+      const ownerId = propertyDoc.data()?.ownerId;
+      if (!ownerId) {
+        throw new Error(`Owner ID not found on property ${propertyId}.`);
+      }
+
+      const clientDoc = await transaction.get(clientRef);
+      if (!clientDoc.exists()) {
+        transaction.set(clientRef, {
+          id: userId,
+          ownerId: ownerId,
+          name: `Visitor (${userId.substring(0, 6)})`,
+        });
+      } else if (!clientDoc.data()?.ownerId) {
+        transaction.update(clientRef, { ownerId: ownerId });
+      }
+
+      const chatDoc = await transaction.get(chatLogRef);
+      if (chatDoc.exists()) {
+        transaction.update(chatLogRef, {
+          messages: arrayUnion(userMessage, assistantMessage),
+          lastUpdatedAt: serverTimestamp(),
+        });
+      } else {
+        transaction.set(chatLogRef, {
+          clientId: userId,
+          propertyId: propertyId,
+          messages: [userMessage, assistantMessage],
+          lastUpdatedAt: serverTimestamp(),
+        });
+      }
+
+      // Increment general AI message count only on a successful AI response
+      if (incrementUsage) {
+        transaction.update(propertyRef, { messageCount: (propertyDoc.data().messageCount || 0) + 1 });
+      }
+    });
+  } catch (error) {
+    console.error('Error logging messages in transaction:', error);
+    // We don't re-throw here because the client has already received the answer.
+    // This is a background logging failure.
+  }
 }

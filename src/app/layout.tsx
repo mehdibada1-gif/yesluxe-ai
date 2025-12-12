@@ -1,3 +1,4 @@
+
 import type { Metadata, ResolvingMetadata } from 'next';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';

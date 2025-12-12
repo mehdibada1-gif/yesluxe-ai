@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useFirestore } from '..';
 
 /** Utility type to add an 'id' field to a given type T. */
 export type WithId<T> = T & { id: string };
@@ -63,11 +64,12 @@ export function useCollection<T = any>(
   const [data, setData] = useState<StateDataType>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true); // Default to true
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const firestore = useFirestore();
 
   useEffect(() => {
-    if (!memoizedTargetRefOrQuery) {
+    if (!memoizedTargetRefOrQuery || !firestore) {
       setData(null);
-      setIsLoading(false);
+      setIsLoading(true); // Explicitly set loading to true when query is not ready
       setError(null);
       return;
     }
@@ -90,15 +92,16 @@ export function useCollection<T = any>(
       (error: FirestoreError) => {
         let path: string = 'unknown_path'; // Default path to prevent error
 
-        // SAFELY try to get the path; the internal structure might be missing 
-        // when a security rule error occurs, which is what caused the crash.
         try {
-            path = 
-                memoizedTargetRefOrQuery.type === 'collection'
-                    ? (memoizedTargetRefOrQuery as CollectionReference).path
-                    : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
+            if (memoizedTargetRefOrQuery.type === 'collection') {
+              path = (memoizedTargetRefOrQuery as CollectionReference).path;
+            } else if (memoizedTargetRefOrQuery.type === 'query') {
+              // This is a safer way to access the path for queries.
+              path = (memoizedTargetRefOrQuery as any)._query.path.segments.join('/');
+            }
         } catch (e) {
-            // If the path extraction fails, we keep the default 'unknown_path'.
+            // If path extraction fails, we keep the default 'unknown_path'.
+            console.error("Could not extract path from Firestore query for error reporting:", e);
         }
     
         const contextualError = new FirestorePermissionError({
@@ -116,7 +119,8 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
+  }, [memoizedTargetRefOrQuery, firestore]); // Re-run if the target query/reference changes or firestore becomes available
+  
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
     throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
   }
@@ -136,12 +140,13 @@ export function useCollectionGroup<T = any>(
   const [data, setData] = useState<WithId<T>[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | null>(null);
+  const firestore = useFirestore();
 
   useEffect(() => {
-    // If the query is not ready, don't do anything.
-    if (!memoizedQuery) {
+    // If the query is not ready or firestore is not available, don't do anything.
+    if (!memoizedQuery || !firestore) {
       setData(null);
-      setIsLoading(false);
+      setIsLoading(true);
       setError(null);
       return;
     }
@@ -174,7 +179,7 @@ export function useCollectionGroup<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedQuery]);
+  }, [memoizedQuery, firestore]);
   
   if(memoizedQuery && !memoizedQuery.__memo) {
     throw new Error(memoizedQuery + ' was not properly memoized using useMemoFirebase');

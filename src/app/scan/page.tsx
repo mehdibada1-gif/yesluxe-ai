@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -15,19 +16,28 @@ export default function ScanPage() {
   const { toast } = useToast();
 
   const handleDecode = (result: string) => {
-    // Basic validation: Check if the result is a non-empty string
-    if (result && typeof result === 'string' && result.trim().length > 0) {
+    let propertyId = '';
+    try {
+      // Handle full URLs by extracting the last path segment
+      if (result.startsWith('http')) {
+        const url = new URL(result);
+        const pathSegments = url.pathname.split('/').filter(Boolean);
+        propertyId = pathSegments[pathSegments.length - 1];
+      } else {
+        // Assume the result is just the ID
+        propertyId = result.trim();
+      }
+    } catch (e) {
+      // If URL parsing fails, assume the result is the ID
+      propertyId = result.trim();
+    }
+
+    if (propertyId) {
       toast({
         title: 'QR Code Scanned!',
-        description: `Redirecting to property: ${result}`,
+        description: `Redirecting to property...`,
       });
-      router.push(`/property/${result.trim()}`);
-    } else {
-        toast({
-            variant: 'destructive',
-            title: 'Invalid QR Code',
-            description: 'The scanned QR code does not contain a valid property ID.',
-        });
+      router.push(`/property/${propertyId}`);
     }
   };
 

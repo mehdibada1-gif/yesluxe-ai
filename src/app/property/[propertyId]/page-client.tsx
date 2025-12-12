@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useEffect, useState } from 'react';
@@ -8,7 +9,7 @@ import MediaGallery from '@/components/property/media-gallery';
 import PropertyInfo from '@/components/property/property-info';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Home, Loader2 } from 'lucide-react';
-import { Property, FirestoreFAQ } from '@/lib/types';
+import { Property } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import AIChatInterface from '@/components/property/ai-chat-interface';
@@ -31,7 +32,7 @@ function PropertyPageContent({ property }: { property: Property }) {
         <AppHeader propertyName={property.name} />
         <main className="p-4 md:p-6 lg:p-8">
           {isOwnerView && (
-            <Alert className="mb-6 bg-primary/5 border-primary/20">
+            <Alert className="mb-6 max-w-5xl mx-auto bg-primary/5 border-primary/20">
               <Home className="h-4 w-4" />
               <AlertTitle className="font-semibold">
                 You are viewing your own property.
@@ -46,14 +47,13 @@ function PropertyPageContent({ property }: { property: Property }) {
               </AlertDescription>
             </Alert>
           )}
-          <div className="grid grid-cols-1 xl:grid-cols-3 xl:gap-8 gap-6">
-            <div className="xl:col-span-1 xl:row-start-1">
-              {/* Pass the entire property object */}
+          <div className="flex flex-col lg:flex-row max-w-7xl mx-auto gap-8">
+            <div className="lg:order-2 lg:w-1/3 lg:sticky lg:top-24 h-fit">
               <AIChatInterface
                 property={property}
               />
             </div>
-            <div className="xl:col-span-2 space-y-6">
+            <div className="lg:order-1 lg:w-2/3 space-y-8">
               <MediaGallery media={property.media} />
               <PropertyInfo property={property} />
             </div>

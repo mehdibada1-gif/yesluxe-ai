@@ -8,6 +8,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import ManageInteractionsPage from '../_components/interactions-page';
+import { Loader2 } from 'lucide-react';
+import { Suspense } from 'react';
 
 export default function InteractionsPage() {
   return (
@@ -19,7 +21,9 @@ export default function InteractionsPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ManageInteractionsPage />
+        <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+          <ManageInteractionsPage />
+        </Suspense>
       </CardContent>
     </Card>
   );

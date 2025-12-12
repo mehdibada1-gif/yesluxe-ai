@@ -1,3 +1,4 @@
+
 'use client';
     
 import { useState, useEffect } from 'react';
@@ -10,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useFirestore } from '..';
 
 /** Utility type to add an 'id' field to a given type T. */
 type WithId<T> = T & { id: string };
@@ -46,11 +48,12 @@ export function useDoc<T = any>(
   const [data, setData] = useState<StateDataType>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true); // Default to true
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const firestore = useFirestore();
 
   useEffect(() => {
-    if (!memoizedDocRef) {
+    if (!memoizedDocRef || !firestore) {
       setData(null);
-      setIsLoading(false);
+      setIsLoading(true);
       setError(null);
       return;
     }
@@ -86,8 +89,9 @@ export function useDoc<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedDocRef]); // Re-run if the memoizedDocRef changes.
-    if(memoizedDocRef && !memoizedDocRef.__memo) {
+  }, [memoizedDocRef, firestore]); // Re-run if the memoizedDocRef changes or firestore becomes available.
+  
+  if(memoizedDocRef && !memoizedDocRef.__memo) {
     throw new Error(memoizedDocRef + ' was not properly memoized using useMemoFirebase');
   }
   return { data, isLoading, error };

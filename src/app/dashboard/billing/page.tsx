@@ -298,11 +298,7 @@ export default function BillingPage() {
                     <Separator />
                     <ul className="space-y-3">
                         <PlanFeature included={true}>1 property</PlanFeature>
-                        <PlanFeature included={true}>
-                          <div className='flex items-center gap-1.5'>
-                            <MessageCircle className="h-4 w-4" /> 50 AI Messages / mo
-                          </div>
-                        </PlanFeature>
+                        <PlanFeature included={true}>50 AI Messages / mo</PlanFeature>
                         <PlanFeature included={true}>Standard AI Concierge</PlanFeature>
                         <PlanFeature included={true}>Up to 5 FAQs</PlanFeature>
                         <PlanFeature included={true}>1 recommendation</PlanFeature>
@@ -352,11 +348,7 @@ export default function BillingPage() {
                     <Separator />
                      <ul className="space-y-3">
                         <PlanFeature included={true}>Up to 10 properties</PlanFeature>
-                         <PlanFeature included={true}>
-                          <div className='flex items-center gap-1.5'>
-                            <MessageCircle className="h-4 w-4" /> 500 AI Messages / mo
-                          </div>
-                        </PlanFeature>
+                         <PlanFeature included={true}>500 AI Messages / mo</PlanFeature>
                         <PlanFeature included={true}>Standard AI Concierge</PlanFeature>
                         <PlanFeature included={true}>Unlimited FAQs</PlanFeature>
                         <PlanFeature included={true}>Up to 4 recommendations</PlanFeature>
@@ -405,11 +397,7 @@ export default function BillingPage() {
                         <Separator />
                         <ul className="space-y-3">
                             <PlanFeature included={true}>Unlimited properties</PlanFeature>
-                             <PlanFeature included={true}>
-                              <div className='flex items-center gap-1.5'>
-                                <MessageCircle className="h-4 w-4" /> Unlimited AI Messages
-                              </div>
-                            </PlanFeature>
+                            <PlanFeature included={true}>Unlimited AI Messages</PlanFeature>
                             <PlanFeature included={true}>Advanced AI Concierge</PlanFeature>
                             <PlanFeature included={true}>Unlimited FAQs</PlanFeature>
                             <PlanFeature included={true}>Unlimited Recommendations</PlanFeature>

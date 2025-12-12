@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,7 @@ export default function GlobalError({
                     <p className="font-mono text-sm">{error.message}</p>
                 </div>
             )}
-            <Button onClick={() => reset()}>Try again</Button>
+            <Button onClick={() => window.location.reload()}>Try again</Button>
           </div>
         </div>
       </body>

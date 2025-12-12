@@ -70,7 +70,7 @@ export type Property = {
   averageRating?: number;
   owner?: Owner; // Add optional owner details
   messageCount?: number;
-  messageQuotaResetDate?: string | Timestamp;
+  messageQuotaResetDate?: string;
 };
 
 // Represents an Owner user

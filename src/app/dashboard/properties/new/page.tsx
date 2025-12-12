@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getNextMonthFirstDay } from '@/lib/utils';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function NewPropertyPage() {
   const router = useRouter();
@@ -175,11 +176,7 @@ export default function NewPropertyPage() {
       id: newPropertyId,
       ownerId: user.uid,
       status: status,
-      media: [
-        "https://images.unsplash.com/photo-1670589953882-b94c9cb380f5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjB2aWxsYXxlbnwwfHx8fDE3NjM3NTM1MjZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
-        "https://images.unsplash.com/photo-1611094016919-36b65678f3d6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBsaXZpbmdyb29tfGVufDB8fHx8MTc2MzgyNjYxNHww&ixlib=rb-4.1.0&q=80&w=1080",
-        "https://images.unsplash.com/photo-1696762932825-2737db830bbe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8bW9kZXJuJTIwYmVkcm9vbXxlbnwwfHx8fDE3NjM3Mjk4Mjh8MA&ixlib=rb-4.1.0&q=80&w=1080"
-      ],
+      media: PlaceHolderImages.filter(p => !p.id.includes('avatar')).map(p => p.imageUrl),
       reviewCount: 0,
       ratingSum: 0,
       averageRating: 0,

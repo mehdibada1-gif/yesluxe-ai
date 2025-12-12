@@ -1,6 +1,14 @@
 
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "propertyVectors",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "propertyId", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": [
     {
       "collectionGroup": "inquiries",

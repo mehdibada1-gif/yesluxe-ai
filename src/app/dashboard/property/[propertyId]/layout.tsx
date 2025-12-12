@@ -2,7 +2,7 @@
 'use client';
 
 import { useMemo, useEffect, useRef } from 'react';
-import { doc, collection } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import { useParams, useRouter } from 'next/navigation';
@@ -42,28 +42,20 @@ export default function PropertyManagementLayout({
     error: propertyError,
   } = useDoc<FirestoreProperty>(propertyRef);
   
-  const superAdminRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'superAdmins', user.uid) : null),
-    [firestore, user]
-  );
-  const { data: superAdminDoc, isLoading: isSuperAdminLoading } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminDoc && !isSuperAdminLoading;
-
-
   useEffect(() => {
-    if (isUserLoading || isSuperAdminLoading || isPropertyLoading) return;
+    if (isUserLoading || isPropertyLoading) return;
     
     if (!user) {
       router.push('/login');
       return;
     }
     
-    // If the property is loaded, and the user is NOT a superadmin AND they don't own the property, redirect.
-    if (firestoreProperty && !isSuperAdmin && user.uid !== firestoreProperty.ownerId) {
+    // If the property is loaded and the user doesn't own it, redirect.
+    if (firestoreProperty && user.uid !== firestoreProperty.ownerId) {
       toast({ variant: 'destructive', title: 'Access Denied' });
       router.push('/dashboard');
     }
-  }, [user, isUserLoading, isPropertyLoading, firestoreProperty, isSuperAdmin, isSuperAdminLoading, router, toast]);
+  }, [user, isUserLoading, isPropertyLoading, firestoreProperty, router, toast]);
 
   const handleDownloadQR = () => {
     if (qrCodeRef.current) {
@@ -94,7 +86,6 @@ export default function PropertyManagementLayout({
 
   const handleCopyId = () => {
     if (navigator.clipboard && window.isSecureContext) {
-      // Modern clipboard API
       navigator.clipboard.writeText(propertyId).then(() => {
         toast({
             title: "Property ID Copied!",
@@ -109,7 +100,6 @@ export default function PropertyManagementLayout({
         });
       });
     } else {
-      // Fallback for insecure contexts or older browsers
       const textArea = document.createElement("textarea");
       textArea.value = propertyId;
       textArea.style.position = "absolute";
@@ -135,7 +125,7 @@ export default function PropertyManagementLayout({
     }
   };
 
-  if (isUserLoading || isPropertyLoading || isSuperAdminLoading) {
+  if (isUserLoading || isPropertyLoading) {
     return (
       <div className="flex-1 p-4 md:p-6 lg:p-8">
         <div className="grid gap-6 md:grid-cols-[1fr_250px]">
@@ -166,11 +156,9 @@ export default function PropertyManagementLayout({
     );
   }
   
-  if (user && firestoreProperty && !isSuperAdmin && user.uid !== firestoreProperty.ownerId) {
+  if (user && firestoreProperty && user.uid !== firestoreProperty.ownerId) {
     return null; // Redirecting
   }
-
-  const backLink = isSuperAdmin ? '/dashboard/admin/properties' : '/dashboard/properties';
 
   return (
     <main className="flex-1 p-4 md:p-6 lg:p-8">
@@ -178,7 +166,7 @@ export default function PropertyManagementLayout({
         <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
                  <Button variant="outline" size="sm" asChild className="mb-4">
-                    <Link href={backLink}>&larr; Back to All Properties</Link>
+                    <Link href="/dashboard/properties">&larr; Back to All Properties</Link>
                 </Button>
                 <div className="flex items-center gap-4">
                     <h1 className="text-3xl font-headline font-bold tracking-tight">{firestoreProperty.name}</h1>

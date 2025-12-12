@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow for indexing property data for vector search.
@@ -14,8 +15,7 @@ import {
   FirestoreFAQ,
   FirestoreRecommendation,
 } from '@/lib/types';
-import {chunk} from 'llm-chunk';
-import {googleAI} from '@genkit-ai/google-genai';
+import {chunk, googleAI} from '@genkit-ai/google-genai';
 
 const IndexPropertyDataInputSchema = z.string().min(1);
 export type IndexPropertyDataInput = z.infer<
