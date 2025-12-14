@@ -2,7 +2,7 @@
 import type { Metadata, ResolvingMetadata } from 'next';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
-import { FirebaseClientProvider, ReactQueryProvider } from '@/firebase';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 // This is the static metadata for the app
 export const metadata: Metadata = {
@@ -31,12 +31,10 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased" suppressHydrationWarning>
-        <ReactQueryProvider>
           <FirebaseClientProvider>
             {children}
             <Toaster />
           </FirebaseClientProvider>
-        </ReactQueryProvider>
       </body>
     </html>
   );

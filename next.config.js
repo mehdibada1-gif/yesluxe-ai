@@ -36,8 +36,19 @@ const nextConfig = {
       },
     ],
   },
+  
+  // 🛑 FIX: Remove the unrecognized 'allowedDevOrigins' key
   experimental: {
-    serverComponentsExternalPackages: ['firebase-admin'],
+    // This block is now clean.
+  },
+
+  // ✅ CRITICAL FIX: Keep the webpack config for Firebase Admin SDK isolation
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // This is the essential fix for the Firebase/Next.js module conflict.
+      config.externals.push('firebase-admin');
+    }
+    return config;
   },
 };
 

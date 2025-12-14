@@ -10,6 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const FaqSuggestionSchema = z.object({
   type: z.enum(['new', 'edit']).describe("The type of suggestion: 'new' for a brand new FAQ, or 'edit' for a modification to an existing one."),
@@ -102,7 +103,7 @@ const suggestNewFaqsFlow = ai.defineFlow(
   async (input) => {
     const { output } = await ai.generate({
         prompt: systemPrompt,
-        model: 'googleai/gemini-2.5-flash',
+        model: googleAI.model('gemini-1.5-flash-latest'),
         input: input,
         output: { schema: SuggestNewFaqsOutputSchema },
     });

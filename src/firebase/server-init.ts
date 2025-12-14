@@ -1,32 +1,50 @@
+// src/firebase/server-init.ts (FINAL EXPORT STRATEGY)
+import "server-only";
 
-// This file is for initializing the Firebase CLIENT SDK on the server.
-// It's a singleton pattern to avoid re-initialization.
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getFirestore, type Firestore } from 'firebase/firestore';
-import { firebaseConfig } from './config';
+import { initializeApp, getApps, getApp, cert, App } from 'firebase-admin/app';
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
-// This type is now simplified to only include Firestore from the CLIENT SDK
-type FirebaseServerServices = {
-  app: FirebaseApp;
-  firestore: Firestore;
-};
+// Only export the App, not the Firestore instance directly
+let cachedFirebaseApp: App | undefined;
 
-let firebaseServerPromise: Promise<FirebaseServerServices> | null = null;
+function initializeServerApp(): App {
+    if (cachedFirebaseApp) {
+        return cachedFirebaseApp;
+    }
 
-async function initializeServerServices(): Promise<FirebaseServerServices> {
-  // Use the standard client `initializeApp`
-  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  const firestore = getFirestore(app);
+    if (getApps().length > 0) {
+        const app = getApp();
+        cachedFirebaseApp = app;
+        return cachedFirebaseApp;
+    }
 
-  return { app, firestore };
+    const rawServiceAcct = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (!rawServiceAcct) {
+        throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is not set.");
+    }
+
+    let serviceAcct;
+    try {
+        serviceAcct = JSON.parse(rawServiceAcct);
+    } catch (e) {
+        throw new Error("FIREBASE_SERVICE_ACCOUNT is malformed JSON.");
+    }
+
+    if (typeof serviceAcct.private_key === 'string') {
+        serviceAcct.private_key = serviceAcct.private_key.replace(/\\n/g, '\n');
+    }
+    
+    const app = initializeApp({
+        credential: cert(serviceAcct)
+    });
+    
+    cachedFirebaseApp = app;
+    return cachedFirebaseApp;
 }
 
 /**
- * Initializes and returns the Firebase Client SDK services for server-side use.
+ * Returns an initialized Firebase Admin SDK App instance.
  */
-export function getFirebase(): Promise<FirebaseServerServices> {
-  if (!firebaseServerPromise) {
-    firebaseServerPromise = initializeServerServices();
-  }
-  return firebaseServerPromise;
+export function getFirebaseApp(): App { // 🛑 RENAMED FUNCTION
+    return initializeServerApp();
 }

@@ -13,17 +13,14 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ArrowRight, Bot, Loader2, User, Speaker } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
-import { useUser } from '@/firebase';
+import { useUser } from '@/firebase/provider';
 import { useParams } from 'next/navigation';
 import type { Message, Property } from '@/lib/types';
 import { marked } from 'marked';
 import { useToast } from '@/hooks/use-toast';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Timestamp } from 'firebase/firestore';
 import { getAIAnswer } from '@/app/ai-chat-actions';
 import { getChatHistory } from '@/app/history-actions';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { nanoid } from 'nanoid';
 
 export interface ClientMessage {
   id: string;
@@ -101,46 +98,18 @@ export default function AIChatInterface({
   property: Property;
 }) {
   const [inputValue, setInputValue] = useState('');
+  const [messages, setMessages] = useState<ClientMessage[]>([]);
   const [isSending, startSending] = useTransition();
+  const [isHistoryLoading, startHistoryLoading] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { user } = useUser();
   const params = useParams();
   const propertyId = params.propertyId as string;
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const chatLogQueryKey = ['chatLog', propertyId, user?.uid];
-
-  const { data: fetchedMessages, isLoading: isHistoryLoading } = useQuery({
-    queryKey: chatLogQueryKey,
-    queryFn: () => getChatHistory(propertyId, user!.uid),
-    enabled: !!user,
-    select: (firestoreMessages): ClientMessage[] => {
-        return firestoreMessages.map(msg => {
-            const html = marked.parse(msg.content) as string;
-            const createdAt = msg.createdAt instanceof Timestamp 
-                ? msg.createdAt.toDate() 
-                : new Date(msg.createdAt as any);
-
-            return {
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                createdAt: createdAt,
-                display: (
-                    <div
-                        className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0"
-                        dangerouslySetInnerHTML={{ __html: html }}
-                    />
-                ),
-            };
-        });
-    }
-  });
-
-  const messages = useMemo(() => {
+  const welcomeMessage = useMemo<ClientMessage>(() => {
     const welcomeText = `Welcome to ${property.name}! You can use this chat if you have any questions about the property or any feature.`;
-    const welcomeMessage: ClientMessage = {
+    return {
       id: 'welcome-message',
       role: 'assistant',
       content: welcomeText,
@@ -152,14 +121,26 @@ export default function AIChatInterface({
         />
       ),
     };
-    
-    if (!fetchedMessages || fetchedMessages.length === 0) {
-        return [welcomeMessage];
-    }
-    
-    return fetchedMessages;
+  }, [property.name]);
 
-  }, [fetchedMessages, property.name]);
+  useEffect(() => {
+    if (user?.uid) {
+      startHistoryLoading(async () => {
+        const history = await getChatHistory(propertyId, user.uid);
+        const clientMessages = history.map((msg: Message): ClientMessage => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          createdAt: new Date(msg.createdAt as string),
+          display: <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0" dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) as string }} />
+        }));
+
+        setMessages(clientMessages.length > 0 ? clientMessages : [welcomeMessage]);
+      });
+    } else {
+        setMessages([welcomeMessage]);
+    }
+  }, [user, propertyId, welcomeMessage]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -175,21 +156,41 @@ export default function AIChatInterface({
     if (!inputValue || !user) return;
 
     const question = inputValue;
+    const userMessage: ClientMessage = {
+      id: `local-${Date.now()}`,
+      role: 'user',
+      content: question,
+      createdAt: new Date(),
+      display: <p>{question}</p>,
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
     setInputValue('');
 
     startSending(async () => {
         try {
-            await getAIAnswer({ propertyId: property.id, question, userId: user.uid });
-            await queryClient.invalidateQueries({ queryKey: chatLogQueryKey });
+            const result = await getAIAnswer({ propertyId: property.id, question, userId: user.uid });
+            
+            const assistantMessage: ClientMessage = {
+              id: `local-response-${Date.now()}`,
+              role: 'assistant',
+              content: result.answer,
+              createdAt: new Date(),
+              display: <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0" dangerouslySetInnerHTML={{ __html: marked.parse(result.answer) as string }} />,
+            };
+
+            setMessages(prev => [...prev, assistantMessage]);
 
         } catch (error: any) {
             console.error('Error processing message:', error);
-            toast({
-                variant: 'destructive',
-                title: 'Error Processing Message',
-                description: error.message || 'Could not process your message. Please try again later.',
-            });
-            await queryClient.invalidateQueries({ queryKey: chatLogQueryKey });
+            const errorMessage: ClientMessage = {
+                id: `local-error-${Date.now()}`,
+                role: 'assistant',
+                content: 'Sorry, I had trouble processing your message. Please try again later.',
+                createdAt: new Date(),
+                display: <p>Sorry, I had trouble processing your message. Please try again later.</p>
+            };
+            setMessages(prev => [...prev, errorMessage]);
         }
     });
   };
@@ -220,7 +221,7 @@ export default function AIChatInterface({
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
               )}
-              {messages && messages.map(message => (
+              {!isHistoryLoading && messages.map(message => (
                 <div key={message.id} className="flex items-start gap-3">
                   {message.role === 'assistant' && (
                     <Avatar className="h-8 w-8 border">

@@ -46,6 +46,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^10.12.5",
+    "firebase-admin": "^12.2.0",
     "genkit": "^1.2.1",
     "lucide-react": "^0.475.0",
     "marked": "^14.0.0",

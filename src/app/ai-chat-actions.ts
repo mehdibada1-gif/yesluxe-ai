@@ -2,14 +2,7 @@
 'use server';
 
 import { answerVisitorQuestion } from '@/ai/flows/answer-visitor-question';
-import { getFirebase } from '@/firebase/server-init';
-import {
-  doc,
-  runTransaction,
-  arrayUnion,
-  serverTimestamp,
-} from 'firebase/firestore';
-import { nanoid } from 'nanoid';
+import { logChatMessage } from './server-actions/log-chat-message';
 
 type GetAIAnswerInput = {
   propertyId: string;
@@ -19,8 +12,8 @@ type GetAIAnswerInput = {
 
 /**
  * This server action provides an AI-driven answer based on property details.
- * It calls the single, robust Genkit flow responsible for the RAG pattern
- * and handles all message logging.
+ * It calls the Genkit flow to get an answer and then triggers a separate,
+ * robust server action to log the conversation, ensuring separation of concerns.
  */
 export async function getAIAnswer(
   input: GetAIAnswerInput
@@ -28,107 +21,43 @@ export async function getAIAnswer(
   'use server';
 
   const { propertyId, question, userId } = input;
-  let aiAnswer: string;
 
   try {
+    // 1. Get the AI-generated answer.
     const { answer } = await answerVisitorQuestion({
       propertyId: propertyId,
       question,
     });
-    aiAnswer = answer || "I'm sorry, I was unable to process that request.";
-  } catch (error) {
-    console.error('Error getting AI answer, logging user message anyway.', error);
-    aiAnswer =
-      "I'm sorry, an error occurred while processing your request. The property owner has been notified.";
-    // Still log the user's question even if the AI fails
-    await logMessages(propertyId, userId, question, aiAnswer, false);
-    // Re-throw to inform the client
-    throw error;
-  }
+    
+    const finalAnswer = answer || "I'm sorry, I was unable to process that request.";
 
-  // Log both the question and the successful answer.
-  await logMessages(propertyId, userId, question, aiAnswer, true);
-
-  return {
-    answer: aiAnswer,
-  };
-}
-
-/**
- * Logs the user question and assistant answer to Firestore within a transaction.
- */
-async function logMessages(
-  propertyId: string,
-  userId: string,
-  question: string,
-  answer: string,
-  incrementUsage: boolean
-) {
-  const { firestore } = await getFirebase();
-  const propertyRef = doc(firestore, 'properties', propertyId);
-  const clientRef = doc(firestore, 'clients', userId);
-  const chatLogRef = doc(propertyRef, 'chatLogs', userId);
-
-  const userMessage = {
-    id: nanoid(),
-    role: 'user' as const,
-    content: question,
-    createdAt: serverTimestamp(),
-  };
-
-  const assistantMessage = {
-    id: nanoid(),
-    role: 'assistant' as const,
-    content: answer,
-    createdAt: serverTimestamp(),
-  };
-
-  try {
-    await runTransaction(firestore, async (transaction) => {
-      const propertyDoc = await transaction.get(propertyRef);
-      if (!propertyDoc.exists()) {
-        throw new Error(`Property with ID ${propertyId} does not exist.`);
-      }
-
-      const ownerId = propertyDoc.data()?.ownerId;
-      if (!ownerId) {
-        throw new Error(`Owner ID not found on property ${propertyId}.`);
-      }
-
-      const clientDoc = await transaction.get(clientRef);
-      if (!clientDoc.exists()) {
-        transaction.set(clientRef, {
-          id: userId,
-          ownerId: ownerId,
-          name: `Visitor (${userId.substring(0, 6)})`,
-        });
-      } else if (!clientDoc.data()?.ownerId) {
-        transaction.update(clientRef, { ownerId: ownerId });
-      }
-
-      const chatDoc = await transaction.get(chatLogRef);
-      if (chatDoc.exists()) {
-        transaction.update(chatLogRef, {
-          messages: arrayUnion(userMessage, assistantMessage),
-          lastUpdatedAt: serverTimestamp(),
-        });
-      } else {
-        transaction.set(chatLogRef, {
-          clientId: userId,
-          propertyId: propertyId,
-          messages: [userMessage, assistantMessage],
-          lastUpdatedAt: serverTimestamp(),
-        });
-      }
-
-      // Increment general AI message count only on a successful AI response
-      if (incrementUsage) {
-        transaction.update(propertyRef, { messageCount: (propertyDoc.data().messageCount || 0) + 1 });
-      }
+    // 2. Log the conversation in the background using a dedicated server action.
+    // We don't await this; it's a fire-and-forget operation.
+    logChatMessage({
+      propertyId,
+      userId,
+      question,
+      answer: finalAnswer,
+      isError: false,
     });
+    
+    return { answer: finalAnswer };
+
   } catch (error) {
-    console.error('Error logging messages in transaction:', error);
-    // We don't re-throw here because the client has already received the answer.
-    // This is a background logging failure.
+    console.error('Error getting AI answer:', error);
+    
+    const errorMessage = "I'm sorry, an error occurred while processing your request. The property owner has been notified.";
+    
+    // Log the failure in the background.
+    logChatMessage({
+      propertyId,
+      userId,
+      question,
+      answer: errorMessage,
+      isError: true,
+    });
+    
+    // Return a user-friendly error message to the client.
+    return { answer: errorMessage };
   }
 }

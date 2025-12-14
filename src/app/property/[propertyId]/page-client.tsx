@@ -15,19 +15,45 @@ import Link from 'next/link';
 import AIChatInterface from '@/components/property/ai-chat-interface';
 
 /**
- * This is the UI for the property page. It is responsible for displaying the property
- * information and handling the anonymous user sign-in effect.
+ * This new component handles the anonymous sign-in effect.
+ * It's kept separate to ensure it doesn't interfere with the rendering of the main page content.
  */
-function PropertyPageContent({ property }: { property: Property }) {
-  const { user } = useUser();
+function AnonymousAuthHandler() {
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+
+  useEffect(() => {
+    if (!isUserLoading && !user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [isUserLoading, user, auth]);
+
+  // This component doesn't render anything itself.
+  return null;
+}
+
+/**
+ * The main UI for the property page.
+ * It is now separate from the authentication logic.
+ */
+export default function PropertyPageClient({ property }: { property: Property }) {
+  const { user, isUserLoading } = useUser();
 
   const isOwnerView = useMemo(() => {
-    // A non-anonymous user is the owner if their UID matches the property's ownerId.
     return user && !user.isAnonymous && user.uid === property.ownerId;
   }, [user, property.ownerId]);
+  
+  if (isUserLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
+       <AnonymousAuthHandler />
       <div className="min-h-screen bg-background">
         <AppHeader propertyName={property.name} />
         <main className="p-4 md:p-6 lg:p-8">
@@ -64,39 +90,3 @@ function PropertyPageContent({ property }: { property: Property }) {
   );
 }
 
-/**
- * This parent component handles the authentication effect and loading states.
- * It ensures that the main content is only rendered after the user state is resolved.
- */
-export default function PropertyPageClient({
-  property,
-}: {
-  property: Property;
-}) {
-  const auth = useAuth();
-  const { user, isUserLoading } = useUser();
-
-  // This effect handles signing in anonymous users on the client.
-  useEffect(() => {
-    if (!isUserLoading && !user && auth) {
-      initiateAnonymousSignIn(auth);
-    }
-  }, [isUserLoading, user, auth]);
-
-  if (!property) {
-    // This case should ideally be handled by the server component with notFound().
-    return <div>Property not found.</div>;
-  }
-
-  // Prevents rendering the UI until the user's auth state is resolved.
-  if (isUserLoading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
-  // Once loading is complete, render the actual page content.
-  return <PropertyPageContent property={property} />;
-}

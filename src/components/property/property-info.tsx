@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -88,7 +87,7 @@ function BookingInquiryForm({ property, recommendation, onFinished }: { property
         setIsSubmitting(true);
 
         const newInquiryId = nanoid();
-        const newInquiryData = {
+        const newInquiryData: any = {
             id: newInquiryId,
             propertyId: property.id,
             ownerId: property.ownerId,
@@ -352,7 +351,6 @@ function ReviewForm({ property }: { property: Property }) {
         </Card>
     )
 }
-
 
 export default function PropertyInfo({ property }: PropertyInfoProps) {
   

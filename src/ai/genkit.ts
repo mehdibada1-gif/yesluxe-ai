@@ -1,9 +1,14 @@
+// src/ai/genkit.ts
 
 import { genkit } from 'genkit';
+// 🛑 FIX: The package is 'google-genai', but the export is named 'googleAI'
 import { googleAI } from '@genkit-ai/google-genai'; 
 
 export const ai = genkit({
-  plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY, apiVersion: 'v1' })],
+  plugins: [
+    // 🛑 Call the correctly named function
+    googleAI(),
+  ],
   logLevel: 'debug',
   enableTracingAndMetrics: true,
 });

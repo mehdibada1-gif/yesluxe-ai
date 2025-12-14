@@ -1,94 +1,180 @@
-
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Core Functions ---
+    /**
+     * Core Philosophy: This ruleset enforces a strict user-ownership model centered
+     * around the 'Owner' entity. Owners have full control over their own profile
+     * and the 'Property' and 'Experience' documents they create. Public access is
+     * granted for browsing properties and experiences, but all write operations
+     * are locked down to the designated owner.
+     *
+     * Data Structure: The data is organized into flat, top-level collections
+     * (e.g., /owners, /properties, /chat_messages). This structure avoids slow
+     * and complex hierarchical lookups in rules, making them more performant and
+     * secure. Authorization data, like an `ownerId`, is denormalized directly
+     * onto the documents it secures (e.g., the Property document).
+     *
+     * Key Security Decisions:
+     * - User privacy is paramount: Listing users (/owners, /clients) is disabled.
+     * - Properties and Experiences are publicly readable to support browsing, but
+     *   all modifications are restricted to the document owner.
+     * - Chat messages represent a collaboration between a Client and a Property Owner,
+     *   and access is granted to both parties. Collection-level listing of chats
+     *   is disabled to prevent data leakage, forcing clients to query for messages
+     *   scoped to a specific property or client.
+     *
+     * Denormalization for Authorization: The `ownerId` field on `Property`
+     * documents is a critical part of this security model. It allows for a direct,
+     * efficient check (`resource.data.ownerId == request.auth.uid`) without needing
+     * a costly `get()` call to another collection, simplifying the rules for our
+     * most common entity.
+     *
+     * Structural Segregation: Each primary data type (Owner, Property, Client, etc.)
+     * is stored in its own top-level collection. This ensures that a single,
+     * consistent set of security rules can be applied to all documents of that type,
+     * which is essential for secure list operations.
+     */
+
+    // --------------------------------------------------------------------------
+    // Helper Functions
+    // --------------------------------------------------------------------------
+
+    /**
+     * Returns true if the user is authenticated.
+     */
     function isSignedIn() {
       return request.auth != null;
     }
 
+    /**
+     * Returns true if the requesting user's UID matches the provided userId.
+     * This is the primary function for enforcing document ownership.
+     */
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-    
-    function canManageProperty(propertyId) {
-        // Safely access data property only if the document exists
-        let propertyDoc = get(/databases/$(database)/documents/properties/$(propertyId));
-        return propertyDoc.exists && isOwner(propertyDoc.data.ownerId);
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- Properties Collection ---
-    match /properties/{propertyId} {
-      // Allow public read for visitor pages, which use the client SDK on the server
-      allow read: if true;
-      allow write: if canManageProperty(propertyId) || (request.method == 'create' && isOwner(request.resource.data.ownerId));
-
-      // --- Subcollections ---
-      match /reviews/{reviewId} {
-        // Allow public read for visitor pages
-        allow read: if true;
-        allow create: if true;
-        allow update, delete: if canManageProperty(propertyId);
-      }
-
-      match /faqs/{faqId} {
-        // Allow public read for visitor pages
-        allow read: if true;
-        allow write: if canManageProperty(propertyId);
-      }
-      
-      match /recommendations/{recommendationId} {
-        // Allow public read for visitor pages
-        allow read: if true;
-        allow write: if canManageProperty(propertyId);
-      }
-
-      match /bookingInquiries/{inquiryId} {
-        allow create: if isSignedIn();
-        allow read, update: if canManageProperty(propertyId);
-      }
-
-      // --- ChatLogs Subcollection ---
-      match /chatLogs/{clientId} {
-        // CREATE: Denied. Must be handled by a trusted server process (Server Action).
-        allow create: if false; 
-
-        // UPDATE: Allow the client who owns this log to add messages.
-        allow update: if isOwner(clientId);
-
-        // READ / LIST: Allow the client owner or a property manager to view.
-        allow read, list: if isOwner(clientId) || canManageProperty(propertyId);
-
-        // DELETE: Denied from client.
-        allow delete: if false;
-      }
+    /**
+     * Returns true if the document being accessed already exists in Firestore.
+     * Used to prevent updates or deletes on non-existent documents.
+     */
+    function isExistingDoc() {
+      return resource != null;
     }
 
-    // --- Top-Level Collections ---
+    /**
+     * Returns true if the user is the owner of an existing document.
+     * Combines ownership and existence checks for robust update/delete rules.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && isExistingDoc();
+    }
+
+    /**
+     * Returns true if the user is the owner of the specified property.
+     * This performs a single `get` operation to check the ownerId on a property doc.
+     */
+    function isPropertyOwner(propertyId) {
+      return isSignedIn() && get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId == request.auth.uid;
+    }
+
+    // --------------------------------------------------------------------------
+    // Collection Rules
+    // --------------------------------------------------------------------------
+
+    /**
+     * @description Manages property owner profiles. An owner can create, read, and
+     *   update their own profile, but cannot see or interact with other owner profiles.
+     * @path /owners/{ownerId}
+     * @allow (create) An authenticated user creating their own profile: `request.auth.uid == ownerId`.
+     * @deny (list) Any user attempting to list all owners.
+     * @principle Restricts access to a user's own data tree.
+     */
     match /owners/{ownerId} {
-      // Allow public read for profile pages
-      allow read: if true; 
-      allow create: if isSignedIn() && isOwner(ownerId);
-      allow update: if isSignedIn() && isOwner(ownerId);
-
-      match /inquiries/{inquiryId} {
-          // This subcollection is for sales/premium inquiries.
-          // Allow owner to create, but only superadmins can manage.
-          allow create: if isOwner(ownerId);
-          allow read, update, delete: if false; // Reverted superadmin logic for now
-      }
+      allow get: if isOwner(ownerId);
+      allow list: if false; // Prevent listing of all users
+      allow create: if isOwner(ownerId)
+                      && request.resource.data.id == ownerId;
+      allow update: if isExistingOwner(ownerId)
+                      && request.resource.data.id == resource.data.id; // Enforce immutable ID
+      allow delete: if false; // Owner profiles are not deletable
     }
 
+    /**
+     * @description Defines rules for properties. Properties are public to view but
+     *   can only be created, updated, or deleted by their designated owner.
+     * @path /properties/{propertyId}
+     * @allow (get) Any user, authenticated or not, can view a property.
+     * @deny (update) A user trying to change a property they do not own.
+     * @principle Enforces "Public Read with Owner-Only Writes" security pattern.
+     */
+    match /properties/{propertyId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn()
+                      && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isExistingDoc() && isOwner(resource.data.ownerId)
+                      && request.resource.data.ownerId == resource.data.ownerId; // Enforce immutable owner
+      allow delete: if isExistingDoc() && isOwner(resource.data.ownerId);
+    }
+
+    /**
+     * @description Manages client profiles. Assumes a client is an authenticated user.
+     *   A user can only manage the client document that corresponds to their own UID.
+     * @path /clients/{clientId}
+     * @allow (create) An authenticated user creating their own client profile: `request.auth.uid == clientId`.
+     * @deny (get) A user trying to read another user's client profile.
+     * @principle Restricts access to a user's own data tree (secure default).
+     */
     match /clients/{clientId} {
-      // Clients can read their own document.
-      allow read: if isOwner(clientId);
-      
-      // **CRITICAL FIX**: Allow the Visitor to create/update their own document,
-      // which is required by the server action to register them on first interaction.
-      allow create, update: if isSignedIn() && isOwner(clientId);
-      
-      allow delete: if false;
+      allow get: if isOwner(clientId);
+      allow list: if false; // Prevent listing of all clients
+      allow create: if isOwner(clientId)
+                      && request.resource.data.id == clientId;
+      allow update: if isExistingOwner(clientId)
+                      && request.resource.data.id == resource.data.id; // Enforce immutable ID
+      allow delete: if isExistingOwner(clientId);
     }
+
+    /**
+     * @description Manages experiences. Like properties, experiences are public to
+     *   view but should only be managed by an owner.
+     * @path /experiences/{experienceId}
+     * @allow (get) Any user, authenticated or not, can view an experience.
+     * @deny (create) Any user trying to create an experience without proper ownership data.
+     * @principle Enforces "Public Read with Owner-Only Writes", but requires schema change.
+     */
+    match /experiences/{experienceId} {
+      allow get: if true;
+      allow list: if true;
+
+      // CRITICAL: Cannot implement owner-only writes. The 'Experience' entity is missing an 'ownerId' field.
+      // To secure this, denormalize the `ownerId` from the parent `Property` onto this document.
+      allow create: if false; // TODO: Add owner validation like `request.resource.data.ownerId == request.auth.uid` once schema is updated.
+      allow update: if false; // TODO: Add owner validation like `isOwner(resource.data.ownerId)` once schema is updated.
+      allow delete: if false; // TODO: Add owner validation like `isOwner(resource.data.ownerId)` once schema is updated.
+    }
+
+    /**
+     * @description Manages chat messages between clients and property owners (agents).
+     *   Read access is granted to both participants. Creation is role-based.
+     * @path /chat_messages/{chatMessageId}
+     * @allow (get) The client who sent the message OR the owner of the property can read it.
+     * @deny (list) Any user trying to list all chat messages in the database.
+     * @principle Implements "Shared Access" between a client and a property owner.
+     */
+    match /chat_messages/{chatMessageId} {
+      allow get: if isExistingDoc() && (isOwner(resource.data.clientId) || isPropertyOwner(resource.data.propertyId));
+      allow list: if false; // Prevent listing; force queries scoped by clientId or propertyId.
+      allow create: if isSignedIn()
+                      && request.resource.data.propertyId != null // Must be linked to a property
+                      && ((request.resource.data.isAgent == true && isPropertyOwner(request.resource.data.propertyId))
+                          || (request.resource.data.isAgent == false && isOwner(request.resource.data.clientId)));
+      allow update: if false; // Chat messages are immutable.
+      allow delete: if false; // Chat messages are immutable.
+    }
+
   }
 }

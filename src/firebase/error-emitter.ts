@@ -1,3 +1,4 @@
+'use client';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 /**

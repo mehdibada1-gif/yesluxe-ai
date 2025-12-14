@@ -26,7 +26,7 @@ service cloud.firestore {
       // --- Subcollections ---
       match /reviews/{reviewId} {
         allow read: if true; // Public read access
-        allow create: if true;
+        allow create: if isSignedIn(); // Any signed-in user (incl. anonymous) can create a review
         allow update, delete: if canManageProperty(propertyId);
       }
 
@@ -47,14 +47,17 @@ service cloud.firestore {
 
       // --- ChatLogs Subcollection ---
       match /chatLogs/{clientId} {
-        // CREATE: Denied. Must be handled by a trusted server process (Server Action).
-        allow create: if false; 
+        // CREATE: Allow owner to create the log, which the server action does.
+        allow create: if canManageProperty(propertyId);
 
-        // UPDATE: Allow the client who owns this log to add messages.
-        allow update: if isOwner(clientId);
+        // UPDATE: Allow the client who owns this log OR the property owner to add messages.
+        allow update: if isOwner(clientId) || canManageProperty(propertyId);
 
         // READ / LIST: Allow the client owner or a property manager to view.
-        allow read, list: if isOwner(clientId) || canManageProperty(propertyId);
+        allow read: if isOwner(clientId) || canManageProperty(propertyId);
+        
+        // LIST: Deny collection list to prevent data leakage.
+        allow list: if false;
 
         // DELETE: Denied from client.
         allow delete: if false;
@@ -76,13 +79,10 @@ service cloud.firestore {
     }
 
     match /clients/{clientId} {
-      // Clients can read their own document.
-      allow read: if isOwner(clientId);
-      
-      // **CRITICAL FIX**: Allow the Visitor to create/update their own document,
-      // which is required by the server action to register them on first interaction.
-      allow create, update: if isSignedIn() && isOwner(clientId);
-      
+      // **CRITICAL FIX**: Allow any signed-in user (including anonymous visitors
+      // authenticated by the server action) to create/update their own client document.
+      // This is required to register them on their first interaction.
+      allow read, create, update: if isSignedIn() && isOwner(clientId);
       allow delete: if false;
     }
   }
